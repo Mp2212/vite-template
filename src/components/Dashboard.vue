@@ -167,121 +167,170 @@ import '@/assets/css/style.min.css';
     <main class="main users chart-page" id="skip-target">
 
       <div class="container">
-        <h2 class="main-title">Dashboard</h2>
+        <!-- <h2 class="main-title">Home</h2> -->
+
+        
         <div class="container my-4">
-        <div class="row g-3">
-            <div class="col-sm-6 col-lg-3">
-                <div class="custom-card">
-                    <div class="icon-wrapper">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <h5>Visitors</h5>
-                    <p>1,294</p>
-                </div>
+    <div class="row g-3">
+      <!-- Build Metrics Card -->
+      <div class="col-md-4">
+        <a href="#" class="card-olympos build-metrics card-shadow">
+          <div class="d-flex align-items-center">
+            <div class="icon-wrapper">
+              <i class="fas fa-tools"></i>
             </div>
-            <div class="col-sm-6 col-lg-3">
-                <div class="custom-card">
-                    <div class="icon-wrapper">
-                        <i class="fas fa-envelope"></i>
-                    </div>
-                    <h5>Subscribers</h5>
-                    <p>1,303</p>
-                </div>
+            <div>
+              <h6>Build Metrics</h6>
+              <p>235 Builds</p>
+              <div class="divider"></div>
+              <span class="text-muted">Last month: 220</span>
             </div>
-            <div class="col-sm-6 col-lg-3">
-                <div class="custom-card">
-                    <div class="icon-wrapper">
-                        <i class="fas fa-dollar-sign"></i>
-                    </div>
-                    <h5>Sales</h5>
-                    <p>$1,345</p>
-                </div>
+          </div>
+        </a>
+      </div>
+
+      <!-- Deploy Metrics Card -->
+      <div class="col-md-4">
+        <a href="#" class="card-olympos deploy-metrics card-shadow">
+          <div class="d-flex align-items-center">
+            <div class="icon-wrapper">
+              <i class="fas fa-rocket"></i>
             </div>
-            <div class="col-sm-6 col-lg-3">
-                <div class="custom-card">
-                    <div class="icon-wrapper">
-                        <i class="fas fa-shopping-cart"></i>
-                    </div>
-                    <h5>Order</h5>
-                    <p>250</p>
-                </div>
+            <div>
+              <h6>Deploy Metrics</h6>
+              <p>120 Deployments</p>
+              <div class="divider"></div>
+              <span class="text-muted">Last month: 115</span>
             </div>
-        </div>
+          </div>
+        </a>
+      </div>
+
+      <!-- App Inventory Card -->
+      <div class="col-md-4">
+        <a href="#" class="card-olympos app-inventory card-shadow">
+          <div class="d-flex align-items-center">
+            <div class="icon-wrapper">
+              <i class="fas fa-box"></i>
+            </div>
+            <div>
+              <h6>App Inventory</h6>
+              <p>150 Apps</p>
+              <div class="divider"></div>
+              <span class="text-muted">Last month: 145</span>
+            </div>
+          </div>
+        </a>
+      </div>
+
+      <!-- App Health Card -->
+      <div class="col-md-4">
+        <a href="#" class="card-olympos app-health card-shadow">
+          <div class="d-flex align-items-center">
+            <div class="icon-wrapper">
+              <i class="fas fa-heartbeat"></i>
+            </div>
+            <div>
+              <h6>App Health</h6>
+              <p>98% Healthy</p>
+              <div class="divider"></div>
+              <span class="text-muted">Last month: 95%</span>
+            </div>
+          </div>
+        </a>
+      </div>
+
+      <!-- Release Info Card -->
+      <div class="col-md-4">
+        <a href="#" class="card-olympos release-info card-shadow">
+          <div class="d-flex align-items-center">
+            <div class="icon-wrapper">
+              <i class="fas fa-calendar-check"></i>
+            </div>
+            <div>
+              <h6>Release Info</h6>
+              <p>5 Releases</p>
+              <div class="divider"></div>
+              <span class="text-muted">Last month: 4</span>
+            </div>
+          </div>
+        </a>
+      </div>
+
+      <!-- Vulnerability Dashboard Card -->
+      <div class="col-md-4">
+        <a href="#" class="card-olympos vulnerability-dashboard card-shadow">
+          <div class="d-flex align-items-center">
+            <div class="icon-wrapper">
+              <i class="fas fa-shield-alt"></i>
+            </div>
+            <div>
+              <h6>Vulnerability Dashboard</h6>
+              <p>8 Vulnerabilities</p>
+              <div class="divider"></div>
+              <span class="text-muted">Last month: 10</span>
+            </div>
+          </div>
+        </a>
+      </div>
+
+      <!-- Horizon Outages Card -->
+      <div class="col-md-4">
+        <a href="#" class="card-olympos horizon-outages card-shadow">
+          <div class="d-flex align-items-center">
+            <div class="icon-wrapper">
+              <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <div>
+              <h6>Horizon Outages</h6>
+              <p>3 Outages</p>
+              <div class="divider"></div>
+              <span class="text-muted">Last month: 2</span>
+            </div>
+          </div>
+        </a>
+      </div>
+
+      <!-- Patching Schedule Card -->
+      <div class="col-md-4">
+        <a href="#" class="card-olympos patching-schedule card-shadow">
+          <div class="d-flex align-items-center">
+            <div class="icon-wrapper">
+              <i class="fas fa-calendar-day"></i>
+            </div>
+            <div>
+              <h6>Patching Schedule</h6>
+              <p>12 Patches</p>
+              <div class="divider"></div>
+              <span class="text-muted">Last month: 10</span>
+            </div>
+          </div>
+        </a>
+      </div>
+
+      <!-- Maya Card -->
+      <div class="col-md-4">
+        <a href="#" class="card-olympos maya card-shadow">
+          <div class="d-flex align-items-center">
+            <div class="icon-wrapper">
+              <i class="fas fa-robot"></i>
+            </div>
+            <div>
+              <h6>Maya</h6>
+              <p>20 Tasks</p>
+              <div class="divider"></div>
+              <span class="text-muted">Last month: 18</span>
+            </div>
+          </div>
+        </a>
+      </div>
     </div>
-        <div class="row stat-cards">
-          <div class="col-md-6 col-xl-3">
-            <article class="stat-cards-item">
-              <div class="stat-cards-icon primary">
-                <i data-feather="bar-chart-2" aria-hidden="true"></i>
-              </div>
-              <div class="stat-cards-info">
-                <p class="stat-cards-info__num">1478 286</p>
-                <p class="stat-cards-info__title">Total visits</p>
-                <p class="stat-cards-info__progress">
-                  <span class="stat-cards-info__profit success">
-                    <i data-feather="trending-up" aria-hidden="true"></i>4.07%
-                  </span>
-                  Last month
-                </p>
-              </div>
-            </article>
-          </div>
-          <div class="col-md-6 col-xl-3">
-            <article class="stat-cards-item">
-              <div class="stat-cards-icon warning">
-                <i data-feather="file" aria-hidden="true"></i>
-              </div>
-              <div class="stat-cards-info">
-                <p class="stat-cards-info__num">1478 286</p>
-                <p class="stat-cards-info__title">Total visits</p>
-                <p class="stat-cards-info__progress">
-                  <span class="stat-cards-info__profit success">
-                    <i data-feather="trending-up" aria-hidden="true"></i>0.24%
-                  </span>
-                  Last month
-                </p>
-              </div>
-            </article>
-          </div>
-          <div class="col-md-6 col-xl-3">
-            <article class="stat-cards-item">
-              <div class="stat-cards-icon purple">
-                <i data-feather="file" aria-hidden="true"></i>
-              </div>
-              <div class="stat-cards-info">
-                <p class="stat-cards-info__num">1478 286</p>
-                <p class="stat-cards-info__title">Total visits</p>
-                <p class="stat-cards-info__progress">
-                  <span class="stat-cards-info__profit danger">
-                    <i data-feather="trending-down" aria-hidden="true"></i>1.64%
-                  </span>
-                  Last month
-                </p>
-              </div>
-            </article>
-          </div>
-          <div class="col-md-6 col-xl-3">
-            <article class="stat-cards-item">
-              <div class="stat-cards-icon success">
-                <i data-feather="feather" aria-hidden="true"></i>
-              </div>
-              <div class="stat-cards-info">
-                <p class="stat-cards-info__num">1478 286</p>
-                <p class="stat-cards-info__title">Total visits</p>
-                <p class="stat-cards-info__progress">
-                  <span class="stat-cards-info__profit warning">
-                    <i data-feather="trending-up" aria-hidden="true"></i>0.00%
-                  </span>
-                  Last month
-                </p>
-              </div>
-            </article>
-          </div>
-        </div>
+  </div>
+
 
         
         <div class="row">
-          <div class="col-lg-9">
+          <div class="col-lg-12">
     <!-- Card with Chart -->
     <div class="stat-cards-item">
         <div class="chart">
