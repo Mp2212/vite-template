@@ -14,7 +14,9 @@
     "bootstrap": "^5.3.3",
     "chart.js": "^4.4.3",
     "feather-icons": "^4.29.2",
-    "vue": "^3.4.35"
+    "chartjs-plugin-datalabels": "^2.2.0",
+    "vue": "^3.4.35",
+    "vue-router": "^4.4.3"
   },
   "devDependencies": {
     "@types/feather-icons": "^4.29.4",
