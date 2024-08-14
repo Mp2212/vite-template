@@ -2,7 +2,7 @@
     <div class="container my-4">
       <div class="card p-4 shadow-sm">
         <div class="card-body">
-          <h5 class="card-title mb-3"><i class="fas fa-cogs me-2"></i> Settings</h5>
+          <h5 class="card-title mb-3"><i class="fas fa-cogs me-2"></i> Mertics</h5>
   
           <div class="row">
             <!-- AIT Dropdown -->
@@ -80,36 +80,259 @@
               </select>
             </div>
           </div>
-  
+
+        <div class="row">
+       
+      </div>
+<div class="row">
+  <div class="button-strip">
+    <!-- <button class="btn btn-sm btn-custom-primary text-dark rounded" style="margin-right: 10px;">
+      <i class="fas fa-info-circle"></i> Info
+    </button>
+    <button class="btn btn-sm btn-custom-info text-dark rounded mr-3">
+      <i class="fas fa-history"></i> History
+    </button> -->
+  </div>
+</div>
+<div style="float: right;" v-if="showChartSection">
+<button class="btn btn-sm btn-custom-primary text-dark rounded" style="margin-right: 10px;">
+            <i class="fas fa-info-circle"></i> 
+          </button>
+          <button class="btn btn-sm btn-custom-info text-dark rounded mr-3">
+            <i class="fas fa-history"></i> 
+          </button>
+        </div>
           <!-- Charts Section -->
           <div v-if="showChartSection" class="row mt-5">
             <!-- Total Deployments Chart Card -->
-            <div class="col-md-6 mb-4">
-              <div class="card shadow card-olympos chart-card">
-                <div class="card-body">
-                  <h5 class="card-title">Total Deployments</h5>
-                  <div class="chart-container">
-                    <canvas id="doughnutChart"></canvas>
-                  </div>
-                </div>
+          <!-- Total Deployments Chart Card (Doughnut Chart) -->
+          <div class="col-md-6 mb-4">
+            <div class="card shadow card-olympos chart-card">
+              <div class="card-header">
+                <h6 class="card-title">Total Deployments</h6>
               </div>
-            </div>
-  
-            <!-- Deployment Frequency Chart Card -->
-            <div class="col-md-6 mb-4">
-              <div class="card shadow card-olympos chart-card">
-                <div class="card-body">
-                  <h5 class="card-title">Deployment Frequency</h5>
-                  <div class="chart-container">
-                    <canvas id="topEnvironmentsChart"></canvas>
-                  </div>
+              <div class="card-body">
+                
+                <div class="chart-container">
+                  <canvas id="doughnutChart" height="350" width="400"></canvas>
                 </div>
               </div>
             </div>
           </div>
+
+          <!-- Deployment Frequency Chart Card + Info Card -->
+          <div class="col-md-6 mb-4">
+            <!-- Bar Chart -->
+            <div class="card shadow card-olympos chart-card chart-card-short">
+              <div class="card-header">
+                <h6 class="card-title">Deployment Frequency</h6>
+              </div>
+              <div class="card-body">
+               
+                <div class="chart-container">
+                  <canvas id="topEnvironmentsChart"></canvas>
+                </div>
+              </div>
+            </div>
+
+              <!-- Success Deployment Info Card -->
+              <div class="card chart-card-short shadow mt-3" style="background: linear-gradient(135deg, #e0f7fa, #FFFFFF);">
+                <div class="card-body text-center">
+                  <h5 class="card-title text-success">
+                    <i class="fas fa-check-circle me-2"></i> Number of Successful Deployments
+                  </h5>
+                  <h1 class="display-6">65</h1>
+                  <p class="mb-0">Average Total Duration</p>
+                  <h2 class="display-6">02:34:00</h2>
+                </div>
+              </div>
+          </div>
+          
+          </div>
+
+          <div class="row">
+              <div class="col-md-8">
+                <div class="card shadow card-olympos">
+                  <div class="card-header">
+                    <div class="card-title">Details</div>
+                  </div>
+                  <div class="card-body p-0">
+                    <div class="table-responsive">
+                      <!-- Projects table -->
+                      <table class="table align-items-center mb-0">
+                        <thead class="thead-light">
+                          <tr>
+                            <th>AIT</th>
+                            <th>SPK</th>
+                            <th>Repo</th>
+                            <th>Environment</th>
+                            <th>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <th scope="row">/kaiadmin/</th>
+                            <td>4,569</td>
+                            <td>ENV1</td>
+                            <td>TEST1</td>
+                            <td>
+                              <i class="fas fa-arrow-up text-success me-3"></i>
+                              Success
+                            </td>
+                          </tr>
+                          <tr>
+                            <th scope="row">/kaiadmin/index.html</th>
+                            <td>3,985</td>
+                            <td>319</td>
+                            <td>
+                              <i
+                                class="fas fa-arrow-down text-warning me-3"
+                              ></i>
+                              46,53%
+                            </td>
+                          </tr>
+                          <tr>
+                            <th scope="row">/kaiadmin/charts.html</th>
+                            <td>3,513</td>
+                            <td>294</td>
+                            <td>
+                              <i
+                                class="fas fa-arrow-down text-warning me-3"
+                              ></i>
+                              36,49%
+                            </td>
+                          </tr>
+                          <tr>
+                            <th scope="row">/kaiadmin/tables.html</th>
+                            <td>2,050</td>
+                            <td>147</td>
+                            <td>
+                              <i class="fas fa-arrow-up text-success me-3"></i>
+                              50,87%
+                            </td>
+                          </tr>
+                          <tr>
+                            <th scope="row">/kaiadmin/profile.html</th>
+                            <td>1,795</td>
+                            <td>190</td>
+                            <td>
+                              <i class="fas fa-arrow-down text-danger me-3"></i>
+                              46,53%
+                            </td>
+                          </tr>
+                          <tr>
+                            <th scope="row">/kaiadmin/</th>
+                            <td>4,569</td>
+                            <td>340</td>
+                            <td>
+                              <i class="fas fa-arrow-up text-success me-3"></i>
+                              46,53%
+                            </td>
+                          </tr>
+                          <tr>
+                            <th scope="row">/kaiadmin/index.html</th>
+                            <td>3,985</td>
+                            <td>319</td>
+                            <td>
+                              <i
+                                class="fas fa-arrow-down text-warning me-3"
+                              ></i>
+                              46,53%
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card shadow card-olympos">
+                  <div class="card-header">
+                    <div class="card-head-row card-tools-still-right">
+                      <div class="card-title">Recent Deployments</div>
+                      <div class="card-tools">
+                        <div class="dropdown">
+                          <button
+                            class="btn btn-icon btn-clean"
+                            type="button"
+                            id="dropdownMenuButton"
+                            data-bs-toggle="dropdown"
+                            aria-haspopup="true"
+                            aria-expanded="false"
+                          >
+                            <i class="fas fa-ellipsis-h"></i>
+                          </button>
+                          <div
+                            class="dropdown-menu"
+                            aria-labelledby="dropdownMenuButton"
+                          >
+                            <a class="dropdown-item" href="#">Action</a>
+                            <a class="dropdown-item" href="#">Another action</a>
+                            <a class="dropdown-item" href="#"
+                              >Something else here</a
+                            >
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="card-body">
+                    <ol class="activity-feed">
+                      <li class="feed-item feed-item-secondary">
+                        <time class="date" datetime="9-25">Sep 25</time>
+                        <span class="text"
+                          >Responded to need
+                          <a href="#">"Volunteer opportunity"</a></span
+                        >
+                      </li>
+                      <li class="feed-item feed-item-success">
+                        <time class="date" datetime="9-24">Sep 24</time>
+                        <span class="text"
+                          >Added an interest
+                          <a href="#">"Volunteer Activities"</a></span
+                        >
+                      </li>
+                      <li class="feed-item feed-item-info">
+                        <time class="date" datetime="9-23">Sep 23</time>
+                        <span class="text"
+                          >Joined the group
+                          <a href="single-group.php"
+                            >"Boardsmanship Forum"</a
+                          ></span
+                        >
+                      </li>
+                      <li class="feed-item feed-item-warning">
+                        <time class="date" datetime="9-21">Sep 21</time>
+                        <span class="text"
+                          >Responded to need
+                          <a href="#">"In-Kind Opportunity"</a></span
+                        >
+                      </li>
+                      <li class="feed-item feed-item-danger">
+                        <time class="date" datetime="9-18">Sep 18</time>
+                        <span class="text"
+                          >Created need
+                          <a href="#">"Volunteer Opportunity"</a></span
+                        >
+                      </li>
+                      <!-- <li class="feed-item">
+                        <time class="date" datetime="9-17">Sep 17</time>
+                        <span class="text"
+                          >Attending the event
+                          <a href="single-event.php">"Some New Event"</a></span
+                        >
+                      </li> -->
+                    </ol>
+                  </div>
+                </div>
+             
+                </div>
+              </div>
+            </div>
   
           <!-- Responsive Table Section -->
-          <div class="table-responsive mt-5">
+          <!-- <div class="table-responsive mt-5">
             <table class="table table-striped table-bordered custom-table">
               <thead>
                 <tr>
@@ -148,10 +371,10 @@
                 </tr>
               </tbody>
             </table>
-          </div>
+          </div> -->
         </div>
       </div>
-    </div>
+    
   </template>
   
   <script>
@@ -231,41 +454,45 @@
       };
   
       const createDoughnutChart = () => {
-        const ctx = document.getElementById('doughnutChart').getContext('2d');
-        new Chart(ctx, {
-          type: 'doughnut',
-          data: {
-            labels: ['Running', 'Success', 'Warning', 'Error'],
-            datasets: [{
-              label: 'Total Deployments',
-              data: [45, 65, 30, 20],
-              backgroundColor: ['#007bff', '#28a745', '#ffc107', '#dc3545'],
-              borderWidth: 1,
-              borderColor: '#ffffff',
-              hoverBorderColor: '#dddddd'
-            }]
-          },
-          options: {
-            plugins: {
-              legend: { display: false },
-              datalabels: {
-                color: '#ffffff',
-                anchor: 'end',
-                align: 'start',
-                formatter: (value) => `${value}%`,
-                borderRadius: 3,
-                backgroundColor: (context) => context.dataset.backgroundColor[context.dataIndex]
-              }
-            },
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '70%',
-            layout: {
-              padding: 10
-            }
-          }
-        });
-      };
+  const ctx = document.getElementById('doughnutChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Running', 'Successful', 'Failed'],
+      datasets: [{
+        label: 'Total Deployments',
+        data: [45, 65, 20], // Example numbers
+        backgroundColor: ['#F7A76C','#A1C298' ,'#FF6464'], // Blue, Green, Red
+        borderWidth: 2,
+        borderColor: '#ffffff',
+        hoverBorderColor: '#dddddd'
+      }]
+    },
+    options: {
+      plugins: {
+        legend: { display: true },
+        datalabels: {
+          color: '#ffffff',
+          anchor: 'end',
+          align: 'start',
+          formatter: (value) => `${value}`,
+          borderRadius: 3,
+          backgroundColor: (context) => context.dataset.backgroundColor[context.dataIndex],
+          font: {
+        size: 18,  // Increase this value to make the font larger
+        weight: 'bold' // Optional: make the font bold
+      }
+        }
+      },
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '40%',
+      layout: {
+        padding: 10
+      }
+    }
+  });
+};
   
       const createTopEnvironmentsChart = () => {
         const ctx = document.getElementById('topEnvironmentsChart').getContext('2d');
@@ -276,7 +503,7 @@
             datasets: [{
               label: 'Top Environments and Builds',
               data: [5, 10, 15, 20, 25],
-              backgroundColor: '#007bff'
+              backgroundColor: ['#80BCBD','#98DDCA','#FF6464','#F7A76C']
             }]
           },
           options: {
@@ -332,10 +559,37 @@
   </script>
   
   <style scoped>
- .chart-card {
-  height: 450px; /* Increase the height for larger charts */
+ /* Height adjustments */
+.chart-card {
+  height: 450px;
   overflow: hidden; 
   padding: 15px;
+  background-color: #f6f6f6;
+}
+
+/* Specific adjustment for the bar chart */
+.chart-card-short {
+  height: 220px; /* Adjusted height for the bar chart */
+}
+
+/* Card for displaying deployment info */
+.card .card-body {
+  padding: 20px;
+}
+
+/* Font sizes for large text */
+.display-4 {
+  font-size: 3rem;
+  font-weight: 700;
+}
+
+.display-5 {
+  font-size: 2rem;
+  font-weight: 500;
+}
+
+.text-success {
+  color: #28a745 !important;
 }
 
 .chart-container {
@@ -383,4 +637,26 @@
   .custom-table a:hover {
     text-decoration: underline;
   }
+  .button-strip {
+    margin: 10px;
+    
+  }
+  .btn-custom-info {
+            background-color: #d1ecf1; /* Light info color */
+            border-color: #bee5eb;    /* Light border color */
+            color: #0c5460;           /* Dark text color for contrast */
+        }
+        .btn-custom-info:hover {
+            background-color: #c6e0e8;
+            border-color: #b6d1d4;
+        }
+        .btn-custom-primary {
+            background-color: #cce5ff; /* Light primary color */
+            border-color: #b8daff;    /* Light border color */
+            color: #004085;           /* Dark text color for contrast */
+        }
+        .btn-custom-primary:hover {
+            background-color: #b8daff;
+            border-color: #a2c2e0;
+        }
   </style>
