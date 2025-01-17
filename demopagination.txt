@@ -1,0 +1,58 @@
+<script setup>
+import { ref, computed } from 'vue';
+import Paginate from 'vuejs-paginate-next';
+
+// Reactive records and search tags
+const records = ref(
+  Array.from({ length: 50 }, (_, i) => ({
+    name: `Name ${i + 1}`,
+    email: `user${i + 1}@example.com`,
+  }))
+);
+const searchTags = ref([]); // Tags for filtering records
+
+// Pagination settings
+const itemsPerPage = ref(5); // Number of items per page
+const currentPage = ref(1); // Current active page
+
+// Computed property to filter and paginate records
+const filteredRecordsComputed = computed(() => {
+  let filteredRecords = records.value;
+
+  // Apply filtering if search tags are present
+  if (searchTags.value.length > 0) {
+    filteredRecords = records.value.filter((record) =>
+      searchTags.value.every((tag) =>
+        Object.values(record).some((value) =>
+          String(value).toLowerCase().includes(tag.toLowerCase())
+        )
+      )
+    );
+  }
+
+  // Apply pagination logic
+  const start = (currentPage.value - 1) * itemsPerPage.value;
+  const end = start + itemsPerPage.value;
+  return filteredRecords.slice(start, end);
+});
+
+// Compute total page count based on filtered records
+const pageCount = computed(() => {
+  const filteredLength = searchTags.value.length
+    ? records.value.filter((record) =>
+        searchTags.value.every((tag) =>
+          Object.values(record).some((value) =>
+            String(value).toLowerCase().includes(tag.toLowerCase())
+          )
+        )
+      ).length
+    : records.value.length;
+
+  return Math.ceil(filteredLength / itemsPerPage.value);
+});
+
+// Handle page changes
+function handlePageClick(pageNumber) {
+  currentPage.value = pageNumber; // Update current page
+}
+</script>
