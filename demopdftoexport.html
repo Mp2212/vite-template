@@ -1,0 +1,35 @@
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable'; // ✅ Ensure you import autoTable
+
+const exportToPDF = () => {
+    isExported.value = true;
+
+    const doc = new jsPDF({ orientation: 'landscape' }); // ✅ Use landscape mode for better table fit
+
+    autoTable(doc, {
+        head: [['Ansible Job Name', 'Created By', 'AIT', 'SPK', 'Deployment Environment', 'Repository', 'SCM Branch', 'Deployment Status', 'Ansible Playbook']],
+        body: filteredRecordsComputed.value.map(record => [
+            record.ansibleJobName, record.createdBy, record.ait, record.spk,
+            record.deploymentEnvironment, record.repository, record.scmBranch, 
+            record.deploymentStatus, record.ansiblePlaybook
+        ]),
+        styles: { fontSize: 8, cellPadding: 3 }, // ✅ Adjust font size & spacing
+        columnStyles: {
+            0: { cellWidth: 40 },  // ansibleJobName
+            1: { cellWidth: 30 },  // createdBy
+            2: { cellWidth: 15 },  // ait
+            3: { cellWidth: 15 },  // spk
+            4: { cellWidth: 35 },  // deploymentEnvironment
+            5: { cellWidth: 40 },  // repository
+            6: { cellWidth: 20 },  // scmBranch
+            7: { cellWidth: 25 },  // deploymentStatus
+            8: { cellWidth: 40 },  // ansiblePlaybook
+        },
+        theme: 'grid' // ✅ Add table borders for better readability
+    });
+
+    isExported.value = false;
+
+    // ✅ Save PDF
+    doc.save('Deployment_Metrics.pdf');
+};
