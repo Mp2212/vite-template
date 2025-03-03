@@ -1,0 +1,36 @@
+const exportToExcel = async () => {
+    isExported.value = true; // Temporarily mark export mode
+
+    await nextTick(); // Ensure computed property updates before exporting
+
+    // Get selected (paginated) records
+    const exportRecords = filteredRecordsComputed.value.map(record => ({
+        ansibleJobName: record.ansibleJobName,
+        createdBy: record.createdBy,
+        ait: record.ait,
+        spk: record.spk,
+        deploymentEnvironment: record.deploymentEnvironment,
+        repository: record.repository,
+        scmBranch: record.scmBranch,
+        deploymentStatus: record.deploymentStatus,
+        ansiblePlaybook: record.ansiblePlaybook
+    }));
+
+    if (exportRecords.length === 0) {
+        alert("No records available for export!");
+        isExported.value = false;
+        return;
+    }
+
+    // Convert selected records to Excel sheet
+    const ws = XLSX.utils.json_to_sheet(exportRecords);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Records');
+
+    // Generate and save the Excel file
+    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const excelFile = new Blob([excelBuffer], { type: 'application/octet-stream' });
+    await saveAs(excelFile, 'Deployment_Metrics.xlsx');
+
+    isExported.value = false; // Reset export mode
+};
