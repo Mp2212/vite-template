@@ -1,0 +1,104 @@
+.branchcut-wrapper {
+  background: #f6f8fa;
+  min-height: 100vh;
+}
+
+.card {
+  background: #fff;
+  border-radius: 1.25rem;
+  box-shadow: 0 2px 12px rgba(44, 62, 80, 0.07);
+  padding: 2rem;
+}
+
+.branchcut-wrapper h1, .breadcrumb {
+  font-weight: 700;
+  color: #2947a9;
+}
+
+.form-label, label.label {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #344767;
+}
+
+.form-control,
+.form-select {
+  border-radius: 0.7rem;
+  font-size: 1.04rem;
+  padding: 0.7rem 1.1rem;
+  border: 1px solid #dde1ef;
+  transition: border 0.2s;
+  box-shadow: none;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: #4a00e0;
+  box-shadow: 0 0 0 2px rgba(74,0,224,0.08);
+}
+
+.btn-primary,
+.cut-btn {
+  background: linear-gradient(92deg, #4a00e0 0%, #8e2de2 100%);
+  border: none;
+  font-weight: 700;
+  border-radius: 0.7rem;
+  padding: 0.55rem 2.3rem;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 10px rgba(78, 0, 224, 0.06);
+}
+
+.btn-secondary {
+  background: #eee;
+  color: #888;
+  border: none;
+}
+
+.table {
+  background: #fff;
+  border-radius: 1rem;
+  overflow: hidden;
+  margin-top: 2rem;
+}
+
+.table th {
+  background: #f7f7fc;
+  color: #2947a9;
+  font-weight: 700;
+  border: none !important;
+}
+
+.table td {
+  border-top: 1px solid #e6e6ef !important;
+  vertical-align: middle;
+}
+
+input[type='checkbox'] {
+  accent-color: #4a00e0;
+  width: 1.2em;
+  height: 1.2em;
+}
+
+.alert, .fadererror {
+  border-radius: 0.7rem;
+  font-size: 1.05rem;
+  margin-top: 1.2rem;
+}
+
+.text-danger, .alert-danger {
+  color: #e63946 !important;
+  background: #ffe5e8;
+  border: none;
+}
+
+.text-success, .alert-success {
+  color: #18804b !important;
+  background: #e0ffe9;
+  border: none;
+}
+
+@media (max-width: 768px) {
+  .card {
+    padding: 1rem !important;
+  }
+}
