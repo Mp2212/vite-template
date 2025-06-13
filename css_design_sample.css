@@ -1,0 +1,37 @@
+<style scoped>
+/* Base nav-link */
+:deep(.sidebar .navbar .navbar-nav .nav-link) {
+  padding: 10px 20px;
+  color: #333;
+  font-weight: 700;
+  border-left: 3px solid transparent;
+  border-radius: 0 30px 30px 0;
+  display: flex;
+  align-items: center;
+  transition: all 0.3s ease;
+  text-decoration: none;
+}
+
+/* Hover and active */
+:deep(.sidebar .navbar .navbar-nav .nav-link:hover),
+:deep(.sidebar .navbar .navbar-nav .nav-link.router-link-active),
+:deep(.sidebar .navbar .navbar-nav .nav-link.router-link-exact-active) {
+  background-color: #aadcd9;
+  color: white;
+  border-color: var(--primary, #1c295b);
+}
+
+/* Icon inside link */
+:deep(.sidebar .navbar .navbar-nav .nav-link i) {
+  width: 32px;
+  height: 32px;
+  background: var(--primary, #1c295b);
+  color: white;
+  border-radius: 50%;
+  font-size: 14px;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  margin-right: 10px;
+}
+</style>
