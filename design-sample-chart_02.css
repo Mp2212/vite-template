@@ -1,0 +1,107 @@
+<template>
+  <!-- ───────── horizontal scroll container ───────── -->
+  <div class="wrap">
+    <section class="grid">
+      <div
+        v-for="app in sortedApps"
+        :key="app.appName + app.ait"
+        class="box"
+        @mouseenter="show(app, $event)"
+        @mouseleave="hide"
+      >
+        {{ app.appName }}
+      </div>
+    </section>
+  </div>
+
+  <!-- ───────── tooltip ───────── -->
+  <div v-if="tip.show" class="tooltip" :style="{ top: tip.y + 'px', left: tip.x + 'px' }">
+    <strong>{{ tip.data.appName }}</strong><br />
+    Env : {{ tip.data.env }}<br />
+    Deployed : {{ tip.data.deploymentTime }}
+  </div>
+</template>
+
+<script>
+export default {
+  name: "HeatMap",
+
+  /* ------------ 1. Props ------------ */
+  props: {
+    heatmapData: {
+      type: Array,
+      default: () => [],  // never undefined → avoids “not iterable” error
+    },
+  },
+
+  /* ------------ 2. Reactive state ------------ */
+  data() {
+    return {
+      tip: { show: false, data: {}, x: 0, y: 0 },
+    };
+  },
+
+  /* ------------ 3. Computed ------------ */
+  computed: {
+    gridStyle() {
+      return {
+        gridTemplateRows: `repeat(${this.rows}, ${this.cell}px)`,
+        gridAutoColumns:  `${this.cell}px`,
+      };
+    },
+    sortedApps() {
+      if (!this.heatmapData.length) return [];
+      // newest → oldest
+      return [...this.heatmapData].sort(
+        (a, b) => new Date(b.deploymentTime) - new Date(a.deploymentTime)
+      );
+    },
+  },
+
+  /* ------------ 4. Constants (instance) ------------ */
+  created() {
+    this.cell = 80; // tile size
+    this.rows = 6;  // grid height
+  },
+
+  /* ------------ 5. Methods ------------ */
+  methods: {
+    show(app, e) {
+      const r = e.currentTarget.getBoundingClientRect();
+      this.tip = { show: true, data: app, x: r.left + r.width / 2, y: r.bottom + 10 };
+    },
+    hide() {
+      this.tip.show = false;
+    },
+  },
+};
+</script>
+
+<style scoped>
+/* wrapper + scrollbar */
+.wrap{ width:100%; overflow-x:auto; overflow-y:hidden; padding-bottom:8px; scrollbar-width:thin; }
+.wrap::-webkit-scrollbar{height:6px;}
+.wrap::-webkit-scrollbar-track{background:#eef2f8;border-radius:3px;}
+.wrap::-webkit-scrollbar-thumb{background:#9aaac7;border-radius:3px;}
+
+/* grid (flex row of boxes) */
+.grid{ display:flex; gap:4px; flex-wrap:nowrap; }
+
+/* tile */
+.box{
+  width:80px; height:80px;
+  display:flex; align-items:center; justify-content:center;
+  font:600 .9rem "Inter",sans-serif; color:#333; text-align:center;
+  border-radius:6px; background:#c4d6ff; cursor:pointer;
+  transition:transform .16s ease;
+}
+.box:hover{ transform:translateY(-3px) scale(1.08); }
+
+/* tooltip */
+.tooltip{
+  position:fixed; transform:translateX(-50%);
+  padding:8px 10px; border-radius:6px;
+  background:#fff; box-shadow:0 4px 14px rgba(0,0,0,.15);
+  font-size:.8rem; white-space:nowrap; pointer-events:none; z-index:3000;
+}
+</style>
