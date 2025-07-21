@@ -1,0 +1,112 @@
+<template>
+  <!-- ───────── scrollable container ───────── -->
+  <div class="wrap">
+    <section class="grid" :style="gridStyle">
+      <div
+        v-for="app in tieredApps"
+        :key="app.appName + app.ait"
+        class="tile"
+        :class="cls(app.status)"
+        :style="span(app)"
+        @mouseenter="show(app, $event)"
+        @mouseleave="hide"
+      >
+        {{ app.appName }}
+      </div>
+    </section>
+  </div>
+
+  <!-- ───────── tooltip ───────── -->
+  <transition name="fade">
+    <div v-if="tip.show" class="tooltip" :style="tipPos">
+      <strong>{{ tip.data.appName }}</strong><br />
+      Env: {{ tip.data.env }} · AIT: {{ tip.data.ait }}<br />
+      Deployed: {{ tip.data.deploymentTime }}<br />
+      Status: {{ tip.data.status }}
+    </div>
+  </transition>
+</template>
+
+<script setup>
+import { useVulnerableStore } from "@/stores/vulnerableStore";
+import { storeToRefs } from "pinia";
+import { reactive, computed } from "vue";
+
+const CELL = 80;  // 1×1 tile = 80 px
+const ROWS = 6;   // grid height
+
+/* Pinia store */
+const store = useVulnerableStore();
+const { tieredApps } = storeToRefs(store);     // already sorted + tiered
+
+/* tooltip state */
+const tip = reactive({ show: false, data: {}, x: 0, y: 0 });
+function show(app, e) {
+  const r = e.currentTarget.getBoundingClientRect();
+  Object.assign(tip, {
+    show: true,
+    data: app,
+    x: r.left + r.width / 2,
+    y: r.bottom + 10,
+  });
+}
+function hide() { tip.show = false; }
+
+const gridStyle = `
+  grid-template-rows:repeat(${ROWS},${CELL}px);
+  grid-auto-columns:${CELL}px;`;
+
+const tipPos = computed(() => ({ top: tip.y + "px", left: tip.x + "px" }));
+const span   = ({ size = 1 }) => ({ gridRow:`span ${size}`,gridColumn:`span ${size}`});
+function cls(s) {
+  if (s === "Compliant")     return "c-ok";
+  if (s === "Non‑Compliant") return "c-bad";
+  if (s === "Scan Skipped")  return "c-skip";
+  return "c-unk";
+}
+</script>
+
+<style scoped>
+/* wrapper & scrollbar */
+.wrap{width:100%;overflow-x:auto;overflow-y:hidden;padding-bottom:8px;scrollbar-width:thin;}
+.wrap::-webkit-scrollbar{height:6px;}
+.wrap::-webkit-scrollbar-track{background:#eef2f8;border-radius:3px;}
+.wrap::-webkit-scrollbar-thumb{background:#9aaac7;border-radius:3px;}
+
+/* grid */
+.grid{display:grid;grid-auto-flow:column dense;gap:4px;user-select:none;}
+
+/* tile */
+.tile{
+  border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  font:600 1rem/1.2 "Inter",sans-serif;
+  text-align:center;white-space:normal;word-break:break-word;
+  color:#333;border:1px solid transparent;cursor:pointer;
+  transition:transform .17s cubic-bezier(.2,.75,.4,1),filter .17s;
+}
+.tile:hover{transform:translateY(-3px) scale(1.08);filter:drop-shadow(0 5px 12px rgba(0,0,0,.17));}
+
+/* gradients */
+.c-ok {background:linear-gradient(135deg,#92d0ad 0%,#3fa76e 100%);border-color:#7bc19a;}
+.c-bad{background:linear-gradient(135deg,#ffcf70 0%,#dfa14b 100%);border-color:#f9c35e;}
+.c-skip{background:linear-gradient(135deg,#f89b9b 0%,#ce5f5f 100%);border-color:#e48a8a;}
+.c-unk{background:linear-gradient(135deg,#b6cbff 0%,#7396ff 100%);border-color:#9db6ff;}
+
+/* tooltip */
+.tooltip{
+  position:fixed;transform:translateX(-50%);
+  padding:10px 12px;border-radius:8px;
+  background:rgba(255,255,255,.82);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.55);
+  box-shadow:0 8px 22px rgba(0,0,0,.18);
+  font-size:.8rem;color:#1e2a43;line-height:1.35;
+  pointer-events:none;white-space:nowrap;z-index:3000;
+}
+.tooltip::after{
+  content:"";position:absolute;top:-6px;left:50%;transform:translateX(-50%);
+  border:6px solid transparent;border-bottom-color:rgba(255,255,255,.82);filter:blur(.2px);
+}
+.fade-enter-active,.fade-leave-active{transition:opacity .14s ease;}
+.fade-enter-from,.fade-leave-to{opacity:0;}
+</style>
