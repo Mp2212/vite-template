@@ -1,0 +1,1384 @@
+<template>
+  <div class="chat-wrapper" id="chat-wrapper">
+    <div class="chat-frame" id="chat-frame">
+
+      <header class="chat-header">
+        <div class="header-flex">
+          <p class="title">
+            <i class="fas fa-comments fa-2x" style="color: #fff;"></i>&nbsp;
+            <span>Maya Virtual Assistant</span>
+          </p>
+          <div v-on:click="resetChatBot()" class="fas fa-close fa-2x closebutton"></div>
+        </div>
+      </header>
+
+      <!-- NOTE: id must be main-content for scrollToBottom() -->
+      <main id="main-content" class="main-content">
+        <div class="time-wrapper">
+          <p><i class="fas fa-clock" style="color: #333;"></i>&nbsp; {{ dateTime }}</p>
+        </div>
+
+        <!-- Render groups of messages, then each msg in group -->
+        <template v-for="(group, gi) in messageStack" :key="'g-'+gi">
+          <div
+            v-for="(msg, mi) in group"
+            :key="'m-'+gi+'-'+mi"
+            class="message-wrapper"
+            :class="msg.type"
+          >
+            <div class="message-flex">
+              <p v-html="msg.message"></p>
+            </div>
+            <div :class="[msg.type, 'message-icon']">
+              <i :class="msg.type==='left' ? 'fa fa-wand-sparkles' : 'fa fa-user'"></i>
+            </div>
+          </div>
+        </template>
+
+        <span class="processing" v-if="isProcessing">
+          <span class="dot-flashing"></span>
+        </span>
+      </main>
+
+      <footer v-if="!isProcessing" class="footer-maya">
+  <h6 class="default-text caption-title">Choose a response</h6>
+
+  <template v-for="(actionGroup, ai) in actionsStack" :key="'ag-'+ai">
+    <template v-for="(action, bi) in actionGroup" :key="`a-${ai}-${bi}`">
+
+      <button
+        class="btn maya-button"
+        v-if="action.type==='button'"
+        v-on:click="processNextAction(action)"
+      >
+        <i v-if="action.text==='Application Status'" class="fas fa-signal"></i>
+        <i v-if="action.text==='Access'" class="fas fa-fingerprint"></i>
+        <i v-if="action.text==='Branch Cut'" class="fas fa-code-branch"></i> <!-- NEW -->
+        <i v-if="action.text==='Yes'" class="fas fa-check"></i>
+        <i v-if="action.text==='No'" class="fas fa-xmark"></i>
+        <i v-if="action.text==='Start Over'" class="fas fa-rotate"></i>
+        {{ action.text }}
+      </button>&nbsp;
+
+      <div class="custom-select-container" v-if="action.type==='dropdown' && !action.shouldHide">
+        <select
+          class="custom-select"
+          :aria-label="action.text"
+          :id="action.elementId"
+          @change="action.onChangeEvent && action.onChangeEvent($event)"
+          v-model="action.selected"
+        >
+          <option value="" disabled hidden>{{ action.text }}</option>
+
+          <template v-if="action.applicationResponse">
+            <option :value="option" v-for="(option, oi) in allApplications" :key="`app-${oi}`">
+              {{ option.helix }}
+            </option>
+          </template>
+
+          <template v-else>
+            <option :value="option" v-for="(option, oi) in action.options" :key="`opt-${oi}`">
+              {{ option.helix }}
+            </option>
+          </template>
+        </select>
+      </div>
+      <div
+  class="custom-input-container"
+  v-if="action.type==='input' && !action.shouldHide"
+>
+      <input
+        class="custom-input"
+        :id="action.elementId"
+        :placeholder="action.text"
+        v-model.trim="action.selected"
+        @input="action.onInput && action.onInput($event)"
+        inputmode="numeric"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <small class="input-help" v-if="action.help">{{ action.help }}</small>
+      <small class="input-error" v-if="action.error">{{ action.error }}</small>
+    </div>
+    </template>
+  </template>
+</footer>
+
+
+    </div>
+  </div>
+</template>
+
+<script>
+import axios from "axios";
+import { toRaw } from "vue";
+
+/* =========================
+   STATIC vs API TOGGLE
+   true  -> use static mock data (DEV/demo)
+   false -> use live API (PROD)
+   ========================= */
+const USE_STATIC = true;
+
+/* ===== Mock datasets (match shapes your code expects) ===== */
+const MOCK_ALL_APPS = [
+  { helix: "APP-ALPHA" },
+  { helix: "APP-BETA" },
+  { helix: "APP-GAMMA" },
+  { helix: "APP-OMEGA" },
+];
+/* ===== Branch Cut mock data ===== */
+const MOCK_AITS = [
+  { id: 46263, helix: "ABPA-46263" },
+  { id: 60095, helix: "ACTWF-60095" },
+  { id: 69913, helix: "ADFW-69913" },
+];
+const MOCK_SPKS = ["abpa", "creditcard", "autoloans", "abpaomerch", "abpaaopi"];
+const MOCK_REPOS = [
+  "46263_abpabscdml_build",
+  "46263_abpabscdml_datical",
+  "common_web_sales_jar",
+  "shared_services_jar",
+];
+const MOCK_RELEASES = [
+  "release/2025.09.0",
+  "release/2025.08.0",
+  "release/2025.07.0",
+  "release/2025.04.0",
+];
+const MOCK_INVENTORIES = [
+  // ensures app_server branch with https:// path is taken
+  { app_server: "https://alpha.healthcheck.local" },
+];
+
+const MOCK_STATUS = [
+  {
+    appServerUrl: "https://alpha.healthcheck.local/app",
+    appServerStatus: "200",
+    httpServerUrl: "https://alpha.healthcheck.local/http",
+    httpServerStatus: "200",
+    ltmServerUrl: "https://alpha.healthcheck.local/ltm",
+    ltmServerStatus: "200",
+  },
+];
+
+/* ===== Access Confluence URL normalization (kept as-is) ===== */
+let accessConfluenceUrl = location.href;
+if(!(location.href.includes("maya"))){
+  accessConfluenceUrl = accessConfluenceUrl.replace("/#","");
+  accessConfluenceUrl = accessConfluenceUrl + "#/maya/accessConfluence";
+}else{
+  accessConfluenceUrl = accessConfluenceUrl.replace("/#","");
+}
+accessConfluenceUrl = accessConfluenceUrl.replace("/#/","/");
+
+export default {
+  name: "ChatBot",
+  data(){
+    return{
+      // kept for compatibility; no blocking busy-wait
+      sleep(milliseconds){ console.log("sleeping for milliseconds "+milliseconds); },
+
+      dateTime: new Date().toDateString() + " , " + new Date().toLocaleTimeString(),
+      messageStack: [],
+      actionsStack: [],
+      allApplications: [],
+      constants:{ selectedInventory: "HEALTH CHECKS" },
+      _timeInterval: null,
+
+      messageFlow:{
+        default:{
+          messages:[
+            { message: "Hello! \n I am Maya, your Virtual Assistant", type: "left" },
+            { message: "Choose a topic to get started.", type: "left" },
+          ],
+          actions:[
+            { text: "Application Status", type: "button", next: "applicationStatus", shouldPopPreviousAction: true },
+            { text: "Access", type: "button", next: "access", shouldPopPreviousAction: true },
+           { text: "Branch Cut",        type: "button", next: "branchCut",         shouldPopPreviousAction: true }, // NEW
+          ],
+        },
+
+        applicationStatus:{
+          messages:[
+            { message: "Application Status", type: "right" },
+            { message: "Please choose from the below options.", type: "left" },
+          ],
+          actions:[
+            {
+              type: "dropdown",
+              elementId: "platform",
+              text: "Select Platform",
+              options: [
+                { helix: "ADFW" },{ helix: "DMZ DESKTOP" },{ helix: "DMZ MOBILE" },
+                { helix: "EPRO ECOM" },{ helix: "EPRO GMWM" },{ helix: "EBSC" },
+                { helix: "WIMS" },{ helix: "SFT" },{ helix: "SERVICES CELL" },
+              ],
+              shouldHide: false,
+              selected: "",
+              onChangeEvent: () => {
+               this.messageFlow.applicationStatus.actions[1].shouldHide = false; // was ""
+  this.messageFlow.applicationStatus.actions[1].selected = "";
+  this.messageFlow.applicationStatus.actions[2].shouldHide = true;  // was "true"
+  this.getApplications();
+              },
+            },
+            {
+              type: "dropdown",
+              elementId: "environment",
+              text: "Select Environment",
+              options: [
+                { helix: "DEV1" }, { helix: "DEV2" }, { helix: "DEV3" }, { helix: "DEV4" },
+                { helix: "DEVFLEX" }, { helix: "SITA" }, { helix: "SIT1A" }, { helix: "SIT1B" },
+                { helix: "PSIT" }, { helix: "SITBC" }, { helix: "CMPS1" }, { helix: "CMPS2" },
+                { helix: "CMSR1" }, { helix: "CMSR2" },
+              ],
+              shouldHide: true,
+              selected: "",
+              onChangeEvent: () => {
+                 this.messageFlow.applicationStatus.actions[2].shouldHide = false; // keep boolean
+  this.getApplications();
+              },
+            },
+            {
+              type: "dropdown",
+              applicationResponse: true,
+              elementId: "application",
+              text: "Select Application",
+              options: [{ helix: "option" }],
+              shouldHide: true,
+              selected: "",
+              next: () => this.confirmToShowApplicationStatus(),
+              shouldPopPreviousAction: true,
+              onChangeEvent: () => {
+                this.processNextAction(this.messageFlow.applicationStatus.actions[2]);
+              },
+            },
+          ],
+        },
+
+        access:{
+          messages:[
+            { message: "Access", type: "right" },
+            { message: `As a prerequisite you need to have access for the AppOps Wiki. <a href="${accessConfluenceUrl}" target="_blank">Learn More</a>`, type: "left" },
+          ],
+          actions:[
+            {
+              type: "dropdown",
+              elementId: "selectAccessType",
+              text: "Select Access Type",
+              options: [
+                { helix: "Access to Servers" },
+                { helix: "Access to Jira" },
+                { helix: "Access to Consoles" },
+                { helix: "Access to BitBucket/Jenkins/Sonar" },
+                { helix: "Access to Ansible Tower" },
+                { helix: "Access to Splunk" },
+              ],
+              selected: "",
+              next: undefined,
+              shouldPopPreviousAction: true,
+              onChangeEvent: () => {
+                let accessFlow = this.messageFlow.access.actions[0];
+                if (accessFlow.selected?.helix === "Access to Servers"){
+                  accessFlow.next = "accessServer";
+                }else if(accessFlow.selected?.helix === "Access to Jira"){
+                  accessFlow.next = "accessJira";
+                }else if(accessFlow.selected?.helix === "Access to Consoles"){
+                  accessFlow.next = "accessConsoles";
+                }else if(accessFlow.selected?.helix === "Access to BitBucket/Jenkins/Sonar"){
+                  accessFlow.next = "accessBitBucketJenkinsSonar";
+                }else if(accessFlow.selected?.helix === "Access to Ansible Tower"){
+                  accessFlow.next = "accessAnsibleTower";
+                }else if(accessFlow.selected?.helix === "Access to Splunk"){
+                  accessFlow.next = "accessSplunk";
+                }
+                this.processNextAction(accessFlow);
+              },
+            },
+          ],
+        },
+
+        accessServer:{
+          messages:[ { message: "Access to Servers", type: "right" } ],
+          actions:[
+            {
+              type: "dropdown",
+              elementId: "platform",
+              text: "Select Platform for the Server Access",
+              options: [
+                { helix: "DESKTOP PLATFORM", link: "https://u.go/DesktopPlatform" },
+                { helix: "MOBILE PLATFORM", link: "https://u.go/MobilePlatform" },
+                { helix: "ADFW PLATFORM", link: "https://u.go/ADFWPlatform" },
+                { helix: "EBSC PLATFORM", link: "https://u.go/EBSCPlatform" },
+                { helix: "SERVICECELL PLATFORM", link: "https://u.go/ServicecellPlatform" },
+                { helix: "SFT", link: "https://u.go/SalesBannerPlatform" },
+                { helix: "EPRO ECOM/OMNI", link: "https://u.go/EPROECOM-OMNI" },
+              ],
+              shouldHide: false,
+              selected: "",
+              shouldPopPreviousAction: true,
+              onChangeEvent: () => this.buildAccessServerMessage(),
+            },
+          ],
+        },
+
+        accessJira:{
+          messages:[ { message: "Access to Jira", type: "right" } ],
+          actions:[
+            {
+              type: "dropdown",
+              elementId: "platform",
+              text: "Select Jira",
+              options: [
+                { helix: "AppOps-JIRA", link: "https://jira3.horizon.#.com/projects/APPOPS" },
+              ],
+              shouldHide: false,
+              selected: "",
+              shouldPopPreviousAction: true,
+              onChangeEvent: () => this.buildAccessJiraMessage(),
+            },
+          ],
+        },
+
+        accessConsoles:{
+          messages:[ { message: "Access to Console", type: "right" } ],
+          actions:[
+            {
+              type: "dropdown",
+              elementId: "platform",
+              text: "Select Consoles",
+              options: [
+                { helix: "Access to WAS Consoles(read)", link: "https://u.go/AccessWASConsole" },
+                { helix: "Access to JBOSS Consoles(read)", link: "https://u.go/AccessJBOSSConsole" },
+                { helix: "Access to DevFlex(read/write)", link: "https://u.go/AccessDevFlexConsole" },
+              ],
+              shouldHide: false,
+              selected: "",
+              shouldPopPreviousAction: true,
+              onChangeEvent: () => this.buildAccessConsolesMessage(),
+            },
+          ],
+        },
+
+        accessBitBucketJenkinsSonar: {
+          messages: [ { message: "Access to BitBucket/Jenkins/Sonar", type: "right" } ],
+          actions: [
+            {
+              type: "dropdown",
+              elementId: "platform",
+              text: "Access to BitBucket/Jenkins/Sonar",
+              options: [
+                { helix: "Access to BitBucket/Jenkins/Sonar", link: "https://u.go/BB-Jenkins-SonarAccess" },
+              ],
+              shouldHide: false,
+              selected: "",
+              shouldPopPreviousAction: true,
+              onChangeEvent: () => this.buildAccessBBMessage(),
+            },
+          ],
+        },
+
+        accessAnsibleTower: {
+          messages: [ { message: "Access to Ansible Tower", type: "right" } ],
+          actions: [
+            {
+              type: "dropdown",
+              elementId: "platform",
+              text: "Access to Ansible Tower",
+              options: [
+                { helix: "Access to Ansible Tower", link: "https://u.go/AccessAnsibleTower" },
+              ],
+              shouldHide: false,
+              selected: "",
+              shouldPopPreviousAction: true,
+              onChangeEvent: () => this.buildAccessAnsibleTowerMessage(),
+            },
+          ],
+        },
+
+        accessSplunk: {
+          messages: [ { message: "Access to Splunk", type: "right" } ],
+          actions: [
+            {
+              type: "dropdown",
+              elementId: "platform",
+              text: "Access to Splunk",
+              options: [
+                { helix: "Access to Splunk", link: "https://u.go/Access-Splunk" },
+              ],
+              shouldHide: false,
+              selected: "",
+              shouldPopPreviousAction: true,
+              onChangeEvent: () => this.buildAccessSplunkMessage(),
+            },
+          ],
+        },
+
+        branchCut:{
+  messages:[
+    { message: "Branch Cut", type: "right" },
+    { message: "Select options to create a release branch.", type: "left" },
+  ],
+  actions:[
+    // AIT
+    {
+      type: "dropdown",
+      elementId: "bc_ait",
+      text: "Select AIT",
+      options: [],
+      shouldHide: false,
+      selected: "",
+      onChangeEvent: () => {
+        const A = this.messageFlow.branchCut.actions;
+        A[1].shouldHide = false;  A[1].selected = "";  // show SPK
+        A[2].shouldHide = true;   A[2].selected = "";  // hide Repo
+        A[3].shouldHide = true;   A[3].selected = "";  // hide Target
+        A[4].shouldHide = true;                      // hide Cut button
+        this.loadBcSpk();
+      },
+    },
+    // SPK
+    {
+      type: "dropdown",
+      elementId: "bc_spk",
+      text: "Select SPK",
+      options: [],
+      shouldHide: true,
+      selected: "",
+      onChangeEvent: () => {
+        const A = this.messageFlow.branchCut.actions;
+        A[2].shouldHide = false;  A[2].selected = "";  // show Repo
+        A[3].shouldHide = true;   A[3].selected = "";  // hide Target
+        A[4].shouldHide = true;                      // hide Cut button
+        this.loadBcRepos();
+      },
+    },
+    // REPO
+    {
+      type: "dropdown",
+      elementId: "bc_repo",
+      text: "Select Repo",
+      options: [],
+      shouldHide: true,
+      selected: "",
+      onChangeEvent: () => {
+        const A = this.messageFlow.branchCut.actions;
+        A[3].shouldHide = false;  A[3].selected = "";  // show Target
+        A[4].shouldHide = true;                      // hide Cut button
+        this.loadBcExisting();
+      },
+    },
+    // TARGET
+   {
+  // 2) REPLACE the old Target dropdown with this input config
+  type: "input",
+  elementId: "bc_target",
+  text: "Target Release (YYYY.MM.0)",
+  shouldHide: true,
+  selected: "",
+  help: "Example: 2025.10.0",
+  error: "",
+  onInput: () => this.onBcTargetChanged(),
+},
+    // CUT BUTTON
+    { type: "button", text: "Cut Branch", shouldHide: true, next: () => this.bcCutBranch() },
+  ],
+},
+      }, // end messageFlow
+
+      isProcessing: true,
+      appOpsSupport: [
+        { helix: "https://jira3.horizon.#.com/projects/APPOPS" },
+        { helix: "dg.asset_appops@bofa.com" },
+      ],
+      desSupport: [
+        { helix: "https://u.go/dgConops-NonPT_Engops" },
+        { helix: "dg.des_cfpt_olb_digital_tes@bofa.com" },
+      ],
+    };
+  },
+
+  methods: {
+  showBranchCutResult({ success, message }) {
+  // Build a colored banner (green on success, red on failure)
+  const bannerHtml = `
+    <div class="message-banner${success ? "" : " error"}">
+      <strong>Message:</strong> ${message || (success ? "Branch created." : "Branch creation failed.")}
+    </div>
+  `;
+
+  const flow = {
+    messages: [{ message: bannerHtml, type: "left no-formatting" }],
+    actions: [{ text: "Start Over", type: "button", next: () => this.setToDefault() }],
+  };
+
+  this.pushNewMessageToMessageStack(flow.messages);
+  if (this.actionsStack.length) this.actionsStack.pop();
+  this.actionsStack.push(flow.actions);
+},
+  loadBcAit(){
+  if (USE_STATIC) {
+    const opts = MOCK_AITS.map(a => ({ helix: a.helix, id: a.id }));
+    this.messageFlow.branchCut.actions[0].options = opts;
+    return;
+  }
+  // ===== API MODE =====
+  // axios.get('/horizon-inventory/getallait').then(res => {
+  //   const opts = (res.data || []).map(a => ({ helix: `${a["App Short Name"]}-${a.ID}`, id: a.ID }));
+  //   this.messageFlow.branchCut.actions[0].options = opts;
+  // });
+},
+
+loadBcSpk(){
+  const A = this.messageFlow.branchCut.actions;
+  const ait = A[0].selected;
+  if (!ait) return;
+
+  if (USE_STATIC) {
+    A[1].options = MOCK_SPKS.map(s => ({ helix: s }));
+    return;
+  }
+  // ===== API MODE =====
+  // axios.get(`/horizon-inventory/getSpksByAitId?aitId=${encodeURIComponent(ait.id)}`)
+  //   .then(res => { A[1].options = (res.data || []).map(s => ({ helix: s })); });
+},
+
+loadBcRepos(){
+  const A = this.messageFlow.branchCut.actions;
+  const spk = A[1].selected?.helix;
+  if (!spk) return;
+
+  if (USE_STATIC) {
+    A[2].options = MOCK_REPOS.map(r => ({ helix: r }));
+    return;
+  }
+  // ===== API MODE =====
+  // axios.get(`/admin/api/branchcut/${encodeURIComponent(spk)}?start=0`)
+  //   .then(res => { A[2].options = (res.data?.values || []).map(r => ({ helix: r })); });
+},
+
+loadBcExisting(){
+  const A = this.messageFlow.branchCut.actions;
+
+  if (USE_STATIC) {
+    const clean = MOCK_RELEASES.map(r => r.replace("release/",""));
+    // recommend next month as first option
+    const [y,m] = clean[0].split(".").map(Number);
+    const next = `${m===12?y+1:y}.${m===12?1:m+1}.0`;
+    const list = [{ helix: next }, ...clean.map(x => ({ helix: x }))];
+    A[3].options = list;
+    return;
+  }
+  // ===== API MODE =====
+  // axios.get('/admin/api/branchcut/releasebranches')
+  //   .then(res => {
+  //     const clean = (res.data || []).map(r => r.replace("release/",""));
+  //     const [y,m] = (clean[0]||"2025.09.0").split(".").map(Number);
+  //     const next = `${m===12?y+1:y}.${m===12?1:m+1}.0`;
+  //     A[3].options = [{ helix: next }, ...clean.map(x => ({ helix: x }))];
+  //   });
+},
+
+bcCutBranch() {
+  const A = this.messageFlow.branchCut.actions;
+
+  // Read values (support string or {helix,id})
+  const aitSel = A[0].selected;
+  const aitId =
+    (aitSel && typeof aitSel === "object" && "id" in aitSel)
+      ? aitSel.id
+      : parseInt(String(aitSel?.helix || aitSel || "").match(/\d+/)?.[0] || "", 10);
+
+  const spk    = String(A[1].selected?.helix || A[1].selected || "").trim();
+  const repo   = String(A[2].selected?.helix || A[2].selected || "").trim();
+  const target = String(A[3].selected || "").trim();   // textbox value (YYYY.MM.0)
+
+  // Validate
+  const fmtOk = /^\d{4}\.(0[1-9]|1[0-2])\.0$/.test(target);
+  if (!aitId || !spk || !repo || !fmtOk) {
+    const errHtml = `
+      <div style="background:#fef2f2;border:1px solid #dc2626;color:#7f1d1d;border-radius:10px;padding:10px 12px;">
+        <strong>Message:</strong> Please fill all fields and use Target format <code>YYYY.MM.0</code>.
+      </div>`;
+    this.pushNewMessageToMessageStack([{ message: errHtml, type: "left no-formatting" }]);
+    if (this.actionsStack.length) this.actionsStack.pop();
+    this.actionsStack.push([{ text: "Start Over", type: "button", next: () => this.setToDefault() }]);
+    return;
+  }
+
+  // Intent bubble
+  this.pushNewMessageToMessageStack([
+    { message: `Cutting branch for <b>${repo}</b> → <b>release/${target}</b>`, type: "left" },
+  ]);
+
+  // Helper to render API result
+  const showBanner = (ok, message) => {
+    const styleOk  = "background:#f0fdf4;border:1px solid #16a34a;color:#065f46;";
+    const styleErr = "background:#fef2f2;border:1px solid #dc2626;color:#7f1d1d;";
+    const html = `
+      <div style="${ok ? styleOk : styleErr} border-radius:10px;padding:10px 12px;">
+        <strong>Message:</strong> ${message}
+      </div>`;
+    this.pushNewMessageToMessageStack([{ message: html, type: "left no-formatting" }]);
+    if (this.actionsStack.length) this.actionsStack.pop();
+    this.actionsStack.push([{ text: "Start Over", type: "button", next: () => this.setToDefault() }]);
+  };
+
+  // DEV path: do NOT fabricate messages
+  if (USE_STATIC) {
+    showBanner(false, "DEV mode (USE_STATIC=true): API not called. Set USE_STATIC=false to show the server message here.");
+    return;
+  }
+
+  // ===== REAL API CALL (PROD) — uses API's message verbatim =====
+  this.isProcessing = true;
+  axios.post(
+    "/admin/api/branchcut/create",
+    [
+      {
+        ait: aitId,               // e.g., 46263
+        spk,                      // e.g., "abpa"
+        repo,                     // e.g., "46263_abpabscdml_build"
+        branchNameTarget: target, // e.g., "2025.11.0" (no "release/" prefix)
+      },
+    ],
+    { headers: { "Content-Type": "application/json" } }
+  )
+  .then(({ data }) => {
+    // Expecting: { success: true/false, message: "..." }
+    showBanner(!!data?.success, data?.message ?? "");
+  })
+  .catch((err) => {
+    const msg =
+      err?.response?.data?.message ||
+      err?.response?.data ||
+      err?.message ||
+      "Unexpected error while creating branch.";
+    showBanner(false, msg);
+  })
+  .finally(() => {
+    this.isProcessing = false;
+  });
+},
+    resetChatBot(){
+      this.$emit("hideChatBot", false);
+      document.getElementById("chat-frame").style.display = "none";
+      document.getElementById("chat-wrapper").style.display = "none";
+    },
+
+    updateTime(){
+      const timestamp = new Date();
+      this.dateTime = timestamp.toDateString() + " , " + timestamp.toLocaleTimeString();
+    },
+
+    processNextAction(flow){
+    if (flow.next === "branchCut") {
+  this.loadBcAit();
+}
+      if (typeof flow.next === "function") {
+        flow.next();
+      } else if (
+        this.messageFlow[flow.next]?.messages?.length > 0 &&
+        this.messageStack[this.messageStack.length - 1] !== this.messageFlow[flow.next].messages
+      ) {
+        this.pushNewMessageToMessageStack(this.messageFlow[flow.next].messages);
+      }
+
+      if (typeof flow.next !== "function" && flow.shouldPopPreviousAction) {
+        this.actionsStack.pop();
+      }
+
+      if (
+        typeof flow.next !== "function" &&
+        this.messageFlow[flow.next]?.actions?.length > 0 &&
+        this.actionsStack[this.actionsStack.length - 1] !== this.messageFlow[flow.next].actions
+      ) {
+        this.actionsStack.push(this.messageFlow[flow.next].actions);
+      }
+    },
+
+    pushNewMessageToMessageStack(originalMessagesObj, copyMessagesObj, index = 0){
+      if (!copyMessagesObj) {
+        const copy = [];
+        this.messageStack.push(copy);
+        copyMessagesObj = copy;
+      }
+      if (index < originalMessagesObj.length) {
+        const nextMsg = originalMessagesObj[index];
+        const lastGroup = this.messageStack[this.messageStack.length - 1];
+
+        const pushAndRecurse = (delay = 0) => {
+          setTimeout(() => {
+            copyMessagesObj.push(nextMsg);
+            this.isProcessing = false;
+            this.$nextTick(() => this.scrollToBottom());
+            this.pushNewMessageToMessageStack(originalMessagesObj, copyMessagesObj, index + 1);
+          }, delay);
+        };
+
+        if (this.messageStack.includes(copyMessagesObj)) {
+          if (lastGroup?.length && nextMsg.type === 'left') {
+            this.isProcessing = true;
+            pushAndRecurse(700);
+          } else {
+            pushAndRecurse(0);
+          }
+        } else {
+          this.messageStack.push(copyMessagesObj);
+          pushAndRecurse(0);
+        }
+      }
+    },
+
+    /* ===== Applications list: STATIC vs API ===== */
+    getApplications(){
+      const applicationStatusActions = this.messageFlow.applicationStatus.actions;
+      const platform = applicationStatusActions.find(x => x.elementId === 'platform');
+      const platformHelix = toRaw(platform.selected?.helix || "");
+      if (!platformHelix) return;
+
+      const platformLowerHelix = platformHelix.toLowerCase().replace(/\s/g, '');
+
+      if (USE_STATIC) {
+        const sortedData = [...MOCK_ALL_APPS].sort((a, b) => a.helix.localeCompare(b.helix));
+        this.allApplications = sortedData;
+        this.messageFlow.applicationStatus.actions[2].options = sortedData;
+        return;
+      }
+
+      // ===== API MODE (uncomment for PROD) =====
+      // axios
+      //   .get(`/api/appinv/healthdata/${platformLowerHelix}/getAllApp`)
+      //   .then((response) => {
+      //     const raw = Array.isArray(response.data) ? response.data : [];
+      //     const normalized = raw
+      //       .map(v => (typeof v === 'string' ? { helix: v } : v))
+      //       .filter(v => v && v.helix);
+      //     const sortedData = normalized.sort((a, b) => a.helix.localeCompare(b.helix));
+      //     this.allApplications = sortedData;
+      //     this.messageFlow.applicationStatus.actions[2].options = sortedData;
+      //   }, (error) => {
+      //     console.log(error);
+      //   });
+    },
+
+    confirmToShowApplicationStatus(){
+      const actions = this.messageFlow.applicationStatus.actions;
+      const selectedApplication = actions[2].selected?.helix || actions[2].selected;
+      const selectedEnvironment = actions[1].selected?.helix;
+      const selectedPlatform = actions[0].selected?.helix;
+// Hide the 3 dropdowns now that all are selected
+  actions[0].shouldHide = true;
+  actions[1].shouldHide = true;
+  actions[2].shouldHide = true;
+      const messageFlow = {
+        messages: [
+          {
+            message: `Do you want to check the status of ${selectedApplication} in ${selectedEnvironment} env for ${selectedPlatform} platform?`,
+            type: "left",
+          },
+        ],
+        actions: [
+          { text: "Yes", type: "button", shouldPopPreviousAction: true, next: () => this.buildReadAppEnvironmentMessage() },
+          { text: "No", type: "button", next: () => this.setToDefault() },
+        ],
+      };
+
+      this.pushNewMessageToMessageStack(messageFlow.messages);
+      if (this.actionsStack.length) this.actionsStack.pop();
+      this.actionsStack.push(messageFlow.actions);
+    },
+
+    /* ===== Inventories by app+env: STATIC vs API ===== */
+    buildReadAppEnvironmentMessage(){
+      const actions = this.messageFlow.applicationStatus.actions;
+      const env = actions[1].selected?.helix;
+      const plat = actions[0].selected?.helix;
+      const platformLowerCase = (plat || '').toLowerCase().replace(/\s/g,'');
+      const selectedApplication = actions[2].selected?.helix || actions[2].selected;
+
+      if (!env || !plat || !selectedApplication) return;
+
+      if (USE_STATIC) {
+        this.isProcessing = false;
+        const inventories = [...MOCK_INVENTORIES];
+        this.buildApplicationStatusMessage(inventories);
+        return;
+      }
+
+      // ===== API MODE (uncomment for PROD) =====
+      // this.isProcessing = true;
+      // setTimeout(() => {
+      //   axios
+      //     .get(`/api/appinv/healthdata/${platformLowerCase}/getDataByAppAndEnv/${selectedApplication}/${env}`)
+      //     .then((response) => {
+      //       this.isProcessing = false;
+      //       const inventories = response.data || [];
+      //       this.buildApplicationStatusMessage(inventories);
+      //     })
+      //     .catch(() => { this.isProcessing = false; });
+      // }, 400);
+    },
+
+    /* ===== Status per app/env: STATIC vs API ===== */
+    buildApplicationStatusMessage(inventories){
+      const actions = this.messageFlow.applicationStatus.actions;
+      const selectedApplication = actions[2].selected?.helix || actions[2].selected;
+      const selectedEnvironment = actions[1].selected?.helix;
+      const selectedPlatform = actions[0].selected?.helix;
+
+      const messageFlow = {
+        messages: [{ message: "Yes", type: "right" }],
+        actions: [{ text: "Start Over", type: "button", next: () => this.setToDefault() }],
+      };
+
+      if (inventories.length > 0) {
+        for (let index = 0; index < inventories.length; index++) {
+          const applicationStatusActions = this.messageFlow.applicationStatus.actions;
+          const platform = applicationStatusActions.find(x => x.elementId === 'platform');
+          const platformHelix = toRaw(platform.selected.helix);
+          const platformLowerHelix = platformHelix.toLowerCase().replace(/\s/g, '');
+
+          if (inventories[index]['app_server']?.startsWith('https://')) {
+            messageFlow.messages.push({
+              message: `Here are the health check status of ${selectedApplication} in ${selectedEnvironment} for ${selectedPlatform}`,
+              type: 'left',
+            });
+
+            if (USE_STATIC) {
+              const { statusMessage, serverDetails } = this.buildStatusMessage({ data: MOCK_STATUS });
+              if (statusMessage) {
+                messageFlow.messages.push({ message: statusMessage, type: "left no-formatting message-icon i" });
+              }
+              this._appendUpDownGuidance(messageFlow, serverDetails, selectedApplication, selectedEnvironment, selectedPlatform);
+            } else {
+              // ===== API MODE (uncomment for PROD) =====
+              // axios
+              //   .get(`/api/status/${platformLowerHelix}/env/${selectedEnvironment}/app/${selectedApplication}`)
+              //   .then((response) => {
+              //     let { statusMessage, serverDetails } = this.buildStatusMessage(response);
+              //     if (statusMessage) {
+              //       messageFlow.messages.push({ message: statusMessage, type: "left no-formatting message-icon i" });
+              //     }
+              //     this._appendUpDownGuidance(messageFlow, serverDetails, selectedApplication, selectedEnvironment, selectedPlatform);
+              //   }, (error) => {
+              //     console.log(error);
+              //   });
+            }
+          } else {
+            messageFlow.messages.push({
+              message: `App Server Http Server and LTM healthcheck url's are not available for ${selectedApplication} in ${selectedEnvironment}.`,
+              type: 'left',
+            });
+          }
+        }
+      } else {
+        messageFlow.messages.push({
+          message: `App Server Http Server and LTM healthcheck url's are not available for ${selectedApplication} in ${selectedEnvironment}.`,
+          type: 'left',
+        });
+      }
+
+      this.pushNewMessageToMessageStack(messageFlow.messages);
+      this.actionsStack.pop();
+      this.actionsStack.push(messageFlow.actions);
+    },
+
+    _appendUpDownGuidance(messageFlow, serverDetails, selectedApplication, selectedEnvironment, selectedPlatform){
+      const downVals = ['0','404','503','500','403'];
+
+      if (
+        downVals.includes(serverDetails.appServer.serverStatus) ||
+        downVals.includes(serverDetails.httpServer.serverStatus) ||
+        downVals.includes(serverDetails.ltmServer.serverStatus)
+      ) {
+        if (selectedEnvironment.includes('DEV') || selectedEnvironment.includes('DEVFLEX')) {
+          for (let i = 0; i < this.appOpsSupport.length; i++) {
+            if (this.appOpsSupport[i].helix.startsWith('https://')) {
+              messageFlow.messages.push({
+                message: `${selectedApplication} application health check urls are down in ${selectedEnvironment} for ${selectedPlatform}`,
+                type: 'left',
+              });
+              messageFlow.messages.push({
+                message: `To troubleshoot/triage DEV environment issues please reach-out to APPOPS team via AppOps JIRA ticket`,
+                type: 'left',
+              });
+              messageFlow.messages.push({
+                message: `Please create a AppOps Jira ticket using the below link.<br><a class="customlink" target="_blank" href="${this.appOpsSupport[i].helix}">${this.appOpsSupport[i].helix}</a>`,
+                type: 'left',
+              });
+            }
+          }
+        } else {
+          for (let i = 0; i < this.desSupport.length; i++) {
+            if (this.desSupport[i].helix.startsWith('https://')) {
+              messageFlow.messages.push({
+                message: `${selectedApplication} application health check urls are down in ${selectedEnvironment} for ${selectedPlatform}`,
+                type: 'left',
+              });
+              messageFlow.messages.push({
+                message: `Please engage DES team via the below email distribution group to report/triage ${selectedEnvironment} issues <br><a href="${this.desSupport[i].helix}" target="_blank">${this.desSupport[i].helix}</a>`,
+                type: 'left',
+              });
+            }
+          }
+        }
+      } else if (
+        serverDetails.appServer.serverStatus == "200" ||
+        serverDetails.httpServer.serverStatus == "200" ||
+        serverDetails.ltmServer.serverStatus == "200"
+      ) {
+        messageFlow.messages.push({
+          message: `It looks like ${selectedApplication} in ${selectedEnvironment} for ${selectedPlatform} are all UP.`,
+          type: 'left',
+        });
+      }
+    },
+
+    buildAccessServerMessage(){
+      const msg =
+        `Here is the <a href="${this.messageFlow.accessServer.actions[0].selected.link}" target="_blank">link</a>` +
+        ` to the instructions to access for ${this.messageFlow.accessServer.actions[0].selected.helix}`;
+      const messageFlow = {
+        messages: [ { message: msg, type: 'left' } ],
+        actions: [ { text: 'Start Over', type: 'button', next: () => this.setToDefault() } ],
+      };
+      this.pushNewMessageToMessageStack(messageFlow.messages);
+      this.actionsStack.pop();
+      this.actionsStack.push(messageFlow.actions);
+    },
+
+    buildAccessJiraMessage(){
+      const msg =
+        `Here is the <a href="${this.messageFlow.accessJira.actions[0].selected.link}" target="_blank">link</a>` +
+        ` to the instructions to access for ${this.messageFlow.accessJira.actions[0].selected.helix}`;
+      const messageFlow = {
+        messages: [ { message: msg, type: 'left' } ],
+        actions: [ { text: 'Start Over', type: 'button', next: () => this.setToDefault() } ],
+      };
+      this.pushNewMessageToMessageStack(messageFlow.messages);
+      this.actionsStack.pop();
+      this.actionsStack.push(messageFlow.actions);
+    },
+
+    buildAccessConsolesMessage(){
+      const msg =
+        `Here is the <a href="${this.messageFlow.accessConsoles.actions[0].selected.link}" target="_blank">link</a>` +
+        ` to the instructions to access for ${this.messageFlow.accessConsoles.actions[0].selected.helix}`;
+      const messageFlow = {
+        messages: [ { message: msg, type: 'left' } ],
+        actions: [ { text: 'Start Over', type: 'button', next: () => this.setToDefault() } ],
+      };
+      this.pushNewMessageToMessageStack(messageFlow.messages);
+      this.actionsStack.pop();
+      this.actionsStack.push(messageFlow.actions);
+    },
+
+    buildAccessBBMessage(){
+      const msg =
+        `Here is the <a href="${this.messageFlow.accessBitBucketJenkinsSonar.actions[0].selected.link}" target="_blank">link</a>` +
+        ` to the instructions to access for ${this.messageFlow.accessBitBucketJenkinsSonar.actions[0].selected.helix}`;
+      const messageFlow = {
+        messages: [ { message: msg, type: 'left' } ],
+        actions: [ { text: 'Start Over', type: 'button', next: () => this.setToDefault() } ],
+      };
+      this.pushNewMessageToMessageStack(messageFlow.messages);
+      this.actionsStack.pop();
+      this.actionsStack.push(messageFlow.actions);
+    },
+
+    buildAccessAnsibleTowerMessage(){
+      const msg =
+        `Here is the <a href="${this.messageFlow.accessAnsibleTower.actions[0].selected.link}" target="_blank">link</a>` +
+        ` to the instructions to access for ${this.messageFlow.accessAnsibleTower.actions[0].selected.helix}`;
+      const messageFlow = {
+        messages: [ { message: msg, type: 'left' } ],
+        actions: [ { text: 'Start Over', type: 'button', next: () => this.setToDefault() } ],
+      };
+      this.pushNewMessageToMessageStack(messageFlow.messages);
+      this.actionsStack.pop();
+      this.actionsStack.push(messageFlow.actions);
+    },
+
+    buildAccessSplunkMessage(){
+      const msg =
+        `Here is the <a href="${this.messageFlow.accessSplunk.actions[0].selected.link}" target="_blank">link</a>` +
+        ` to the instructions to access for ${this.messageFlow.accessSplunk.actions[0].selected.helix}`;
+      const messageFlow = {
+        messages: [ { message: msg, type: 'left' } ],
+        actions: [ { text: 'Start Over', type: 'button', next: () => this.setToDefault() } ],
+      };
+      this.pushNewMessageToMessageStack(messageFlow.messages);
+      this.actionsStack.pop();
+      this.actionsStack.push(messageFlow.actions);
+    },
+
+    buildStatusMessage(response){
+      let statusMessage = '';
+      let serverDetails = {
+        appServer: { url: undefined, serverStatus: 'NA' },
+        httpServer: { url: undefined, serverStatus: 'NA' },
+        ltmServer: { url: undefined, serverStatus: 'NA' }
+      };
+      const data = Array.isArray(response.data) ? response.data : [];
+
+      for(let x = 0; x < data.length; x++){
+        if (data[x]['appServerUrl']) {
+          serverDetails.appServer.url = data[x]['appServerUrl'];
+          if (!data[x].appServerUrl.includes('NO DATA')) {
+            serverDetails.appServer.serverStatus = data[x]['appServerStatus'];
+            statusMessage +=
+              `<a href="${serverDetails.appServer.url}" target="_blank">` +
+              `<span class="btn ${serverDetails.appServer.serverStatus === '200' ? 'btn-success' : 'btn-danger'} btn-sm d-inline-block" style="margin: 2px;">` +
+              `APP SERVER ${serverDetails.appServer.serverStatus === '200' ? 'UP' : 'DOWN'}` +
+              `</span></a>`;
+          } else {
+            serverDetails.appServer.serverStatus = data[x]['appServerStatus'];
+          }
+        }
+
+        if (data[x]['httpServerUrl']) {
+          serverDetails.httpServer.url = data[x]['httpServerUrl'];
+          if (!data[x].httpServerUrl.includes('NO DATA')) {
+            serverDetails.httpServer.serverStatus = data[x]['httpServerStatus'];
+            statusMessage +=
+              ` <a href="${serverDetails.httpServer.url}" target="_blank">` +
+              `<span class="btn ${serverDetails.httpServer.serverStatus === '200' ? 'btn-success' : 'btn-danger'} btn-sm d-inline-block" style="margin: 2px;">` +
+              `HTTP SERVER ${serverDetails.httpServer.serverStatus === '200' ? 'UP' : 'DOWN'}` +
+              `</span></a>`;
+          } else {
+            serverDetails.httpServer.serverStatus = data[x]['httpServerStatus'];
+          }
+        }
+
+        if (data[x]['ltmServerUrl']) {
+          serverDetails.ltmServer.url = data[x]['ltmServerUrl'];
+          if (!data[x].ltmServerUrl.includes('NO DATA')) {
+            serverDetails.ltmServer.serverStatus = data[x]['ltmServerStatus'];
+            statusMessage +=
+              ` <a href="${serverDetails.ltmServer.url}" target="_blank">` +
+              `<span class="btn ${serverDetails.ltmServer.serverStatus === '200' ? 'btn-success' : 'btn-danger'} btn-sm d-inline-block" style="margin: 2px;">` +
+              `LTM ${serverDetails.ltmServer.serverStatus === '200' ? 'UP' : 'DOWN'}` +
+              `</span></a>`;
+          } else {
+            serverDetails.ltmServer.serverStatus = data[x]['ltmServerStatus'];
+          }
+        }
+      }
+
+      return { statusMessage, serverDetails };
+    },
+
+    setToDefault(){
+      this.messageStack = [];
+      this.actionsStack = [];
+
+      const actions = this.messageFlow.applicationStatus.actions;
+
+      this.messageFlow.accessJira.actions[0].selected = '';
+      this.messageFlow.accessJira.actions[0].shouldHide = false;
+
+      this.messageFlow.accessConsoles.actions[0].selected = '';
+      this.messageFlow.accessConsoles.actions[0].shouldHide = false;
+
+      this.messageFlow.accessBitBucketJenkinsSonar.actions[0].selected = '';
+      this.messageFlow.accessBitBucketJenkinsSonar.actions[0].shouldHide = false;
+
+      this.messageFlow.accessAnsibleTower.actions[0].selected = '';
+      this.messageFlow.accessAnsibleTower.actions[0].shouldHide = false;
+
+      this.messageFlow.accessSplunk.actions[0].selected = '';
+      this.messageFlow.accessSplunk.actions[0].shouldHide = false;
+
+      actions[1].shouldHide = true;
+      actions[2].shouldHide = true;
+      actions[0].selected = '';
+      actions[1].selected = '';
+      actions[2].selected = '';
+
+      
+
+      this.pushNewMessageToMessageStack(this.messageFlow['default'].messages);
+      this.actionsStack.push(this.messageFlow['default'].actions);
+      if (this.messageFlow.branchCut) {
+  const A = this.messageFlow.branchCut.actions;
+  if (A?.length) {
+    A[0].selected = ""; A[0].shouldHide = false; // AIT
+    A[1].selected = ""; A[1].shouldHide = true;  // SPK
+    A[2].selected = ""; A[2].shouldHide = true;  // Repo
+    A[3].selected = ""; A[3].shouldHide = true;  // Target
+    A[4].shouldHide = true;                      // Cut button
+  }
+}
+    },
+
+    scrollToBottom(){
+      const element = document.getElementById('main-content');
+      if (element) element.scrollTop = element.scrollHeight;
+    },
+  },
+
+  // clear interval safely across Vue 2/3 hooks
+  beforeDestroy(){ if (this._timeInterval) clearInterval(this._timeInterval); },
+  beforeUnmount(){ if (this._timeInterval) clearInterval(this._timeInterval); },
+  unmounted(){ if (this._timeInterval) clearInterval(this._timeInterval); },
+
+  created(){
+    this._timeInterval = setInterval(() => { this.updateTime(); }, 1000);
+    this.isProcessing = true;
+    this.pushNewMessageToMessageStack(this.messageFlow['default'].messages);
+    this.actionsStack.push(this.messageFlow['default'].actions);
+  },
+};
+</script>
+
+<style>
+/* Container & frame */
+.chat-wrapper {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 380px;
+  max-width: 92vw;
+  max-height: 80vh;
+  z-index: 9999;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+}
+.chat-frame {               /* ensure the frame itself can size properly */
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.12);
+  overflow: visible;
+  height: min(620px, 80vh); /* keep the entire widget on screen */
+}
+
+/* Header */
+.chat-header {
+  background: #111827;
+  color: #fff;
+  padding: 12px 14px;
+}
+.header-flex {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.title {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: .2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.closebutton {
+  cursor: pointer;
+  opacity: .85;
+}
+.closebutton:hover { opacity: 1; }
+
+/* Main content */
+.main-content {
+  padding: 12px 14px;
+  overflow-y: auto;
+  flex: 1 1 auto;          /* <-- grow/shrink instead of fixed px */
+  min-height: 160px;       /* keeps some chat history visible */
+  background: #f9fafb;
+}
+.time-wrapper {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+/* Messages */
+.message-wrapper {
+  display: flex;
+  align-items: flex-start;
+  margin: 6px 0;
+}
+.left { flex-direction: row; }
+.right { flex-direction: row-reverse; }
+
+.message-flex p {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  max-width: 75%;
+  line-height: 1.35;
+  font-size: 14px;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* Bubble colors driven by left/right */
+.left .message-flex p  { background: #ffffff; color: #111827; border: 1px solid #e5e7eb; }
+.right .message-flex p { background: #111827; color: #ffffff; }
+
+/* When you inject raw HTML with status badges */
+.no-formatting .message-flex p { background: transparent; border: 0; padding: 0; }
+
+/* Message icon */
+.message-icon {
+  order: -1;              /* move before the text */
+  margin-right: 8px;
+  color: #6b7280;         /* neutral gray */
+  font-size: 14px;
+}
+.message-flex {
+  flex: 1;
+}
+
+.message-icon i {
+  font-size: 18px;
+  opacity: .6;
+}
+
+/* Processing dots */
+.processing {
+  display: inline-flex;
+  padding: 6px 0;
+}
+.dot-flashing {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9ca3af;
+  animation: dotFlashing 1s infinite linear alternate;
+}
+.dot-flashing::before,
+.dot-flashing::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #9ca3af;
+}
+.dot-flashing::before { left: -14px; animation: dotFlashing 1s infinite linear alternate .2s; }
+.dot-flashing::after  { left:  14px; animation: dotFlashing 1s infinite linear alternate .4s; }
+@keyframes dotFlashing {
+  0%   { opacity: .3; transform: translateY(0); }
+  100% { opacity: 1;  transform: translateY(-2px); }
+}
+
+/* Footer/actions */
+.footer-maya {
+  background: #ffffff;
+  border-top: 1px solid #e5e7eb;
+  padding: 12px 14px;
+  position: relative;
+  z-index: 3;
+
+  /* NEW: cap height & allow scroll inside footer */
+  max-height: 45%;          /* ~45% of the widget */
+  overflow-y: auto;
+}
+.custom-select-container {
+  display: block;
+  width: 100%;
+  margin-bottom: 8px;       /* NEW: spacing between dropdowns */
+}
+.maya-button {              /* action buttons spacing remains tidy */
+  margin: 4px 4px 0 0;
+  font-weight: 600;
+}
+
+.custom-select {
+  width: 100%;
+  min-width: 220px;
+  -webkit-appearance: none;     /* ok on Safari/Chrome */
+  appearance: none;
+}
+.main-content { z-index: 1; }
+.default-text { color: #374151; }
+.caption-title {
+  margin: 0 0 10px 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #6b7280;
+}
+
+/* Buttons (also used in status HTML) */
+.btn {
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #111827;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+}
+.btn:hover { background: #f3f4f6; }
+.btn-sm { padding: 4px 8px; font-size: 12px; }
+.d-inline-block { display: inline-block; }
+.btn-success { background: #16a34a; color: #fff; border-color: #16a34a; }
+.btn-danger  { background: #dc2626; color: #fff; border-color: #dc2626; }
+
+/* Specific action button style */
+.maya-button {
+  margin: 4px 4px 0 0;
+  font-weight: 600;
+}
+
+/* Selects */
+.custom-select-container { display: inline-block; }
+.custom-select {
+  width: 100%;
+  min-width: 220px;
+  background: #ffffff;          /* white background */
+  color: #111827;               /* dark readable text */
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.custom-select option {
+  background: #ffffff;          /* force white background */
+  color: #111827;
+  padding: 6px 10px;
+}
+/* highlight selected item */
+.custom-select option:checked,
+.custom-select option:hover {
+  background: #e5e7eb;          /* light gray highlight */
+  color: #111827;
+}
+.custom-select:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.15); }
+
+/* Links that appear inside messages */
+.customlink,
+.message-flex a {
+  color: #2563eb;
+  text-decoration: none;
+}
+.customlink:hover,
+.message-flex a:hover {
+  text-decoration: underline;
+}
+/* Banner message bubble inside chat */
+.message-banner {
+  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  background: #f0fdf4;     /* greenish bg */
+  border-color: #16a34a;   /* green border */
+  color: #065f46;          /* dark green text */
+  font-size: 14px;
+  line-height: 1.35;
+}
+.message-banner.error {
+  background: #fef2f2;     /* reddish bg */
+  border-color: #dc2626;   /* red border */
+  color: #7f1d1d;          /* dark red text */
+}
+</style>
