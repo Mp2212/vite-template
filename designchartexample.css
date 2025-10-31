@@ -1,0 +1,423 @@
+<!-- VisualTab.vue -->
+<template>
+  <div class="container-xl visual-tab">
+
+    <!-- ====== TOP (unchanged) ====== -->
+    <div class="card shadow-soft mb-2">
+      <div class="card-body p-10">
+        <div class="filter-bar">
+          <div class="filters-grid">
+            <div class="chip chip-select">
+              <i class="fa-solid fa-user-group chip-icon"></i>
+              <select v-model="filters.exec" class="chip-input">
+                <option value="">Select Tech Executive</option>
+                <option v-for="p in techExecs" :key="p" :value="p">{{ p }}</option>
+              </select>
+            </div>
+            <div class="chip chip-select">
+              <i class="fa-solid fa-box-archive chip-icon"></i>
+              <select v-model="filters.artifact" class="chip-input">
+                <option v-for="t in artifactTypes" :key="t" :value="t">{{ t }}</option>
+              </select>
+            </div>
+            <div class="chip chip-select">
+              <i class="fa-regular fa-clock chip-icon"></i>
+              <select v-model="filters.duration" class="chip-input">
+                <option value="day">Today</option>
+                <option value="week">Week</option>
+                <option value="month">Month</option>
+                <option value="3months">3Months</option>
+              </select>
+            </div>
+            <div class="chip chip-toggle">
+              <div class="toggle-left">
+                <i class="fa-solid fa-industry chip-icon"></i>
+                <span class="label">Prod</span>
+              </div>
+              <label class="toggle">
+                <input v-model="filters.isProd" type="checkbox" />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="filter-actions">
+            <button class="icon-btn primary" @click="handleSearch" aria-label="Search">
+              <i class="fa-solid fa-magnifying-glass"></i>
+            </button>
+            <button class="icon-btn ghost" @click="resetFilters" aria-label="Reset">
+              <i class="fa-solid fa-rotate-right"></i>
+            </button>
+          </div>
+        </div>
+
+        <h6 class="chart-title">
+          <i class="fa-solid fa-chart-column me-2 icon-muted"></i>
+          Deployment Counts by Environment
+        </h6>
+
+        <div class="chart-container h-260">
+          <canvas id="envBarChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== BOTTOM: Group card with Env filter + 2 charts (UPDATED) ====== -->
+    <div class="card shadow-soft">
+      <div class="card-body p-10">
+
+        <!-- Compact header with embedded filter chip -->
+        <div class="group-header">
+          <h6 class="group-title">
+            <i class="fa-solid fa-cubes me-2 icon-muted"></i>
+            Environment Overview
+          </h6>
+
+          <!-- Filter lives in the header as a chip -->
+          <div class="chip chip-select env-chip">
+            <i class="fa-solid fa-server chip-icon"></i>
+            <select
+              v-model="selectedEnv"
+              class="chip-input"
+              @change="renderDetailCharts"
+            >
+              <option v-for="env in environments" :key="env" :value="env">{{ env }}</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row g-2">
+          <!-- Donut -->
+          <div class="col-md-4">
+            <div class="subcard">
+              <div class="subcard-title">
+                <i class="fa-solid fa-chart-pie me-2" style="color:#80BCBD;"></i>
+                Deployment Summary
+              </div>
+              <div class="chart-container h-300"><!-- bigger -->
+                <canvas id="donutChart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <!-- Exec grouped bars -->
+          <div class="col-md-8">
+            <div class="subcard">
+              <div class="subcard-title">
+                <i class="fa-solid fa-layer-group me-2" style="color:#80BCBD;"></i>
+                {{ selectedEnv }} Deployment by Tech Exec
+              </div>
+              <div class="chart-container h-360"><!-- bigger -->
+                <canvas id="execBarChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import Chart from 'chart.js/auto'
+import ChartDataLabels from 'chartjs-plugin-datalabels'
+Chart.register(ChartDataLabels)
+
+/* ===== Data (same) ===== */
+const envCounts = ref([
+  { env: 'DEV4', count: 193 }, { env: 'SIT1', count: 94 }, { env: 'DEV3', count: 60 },
+  { env: 'PT1', count: 34 }, { env: 'SIT3', count: 17 }, { env: 'SIT2', count: 11 },
+  { env: 'PT2', count: 6 }, { env: 'DEV2', count: 4 }, { env: 'DEVFLEX', count: 2 },
+  { env: 'CERT4', count: 2 }, { env: 'CIT1', count: 1 }, { env: 'CIT2', count: 1 },
+  { env: 'CIT3', count: 1 }, { env: 'CIT4', count: 1 }, { env: 'CIT5', count: 1 }, { env: 'DEV', count: 1 }
+])
+
+const environments = ref(['DEV1', 'SIT1', 'PT1'])
+const detailStore = {
+  DEV1: {
+    summary: { successful: 9, failed: 2, running: 0, canceled: 0 },
+    byTechExec: [
+      { name: 'Kautilya Tyagi', successful: 2, failed: 0, running: 0, canceled: 0 },
+      { name: 'Yacine Arbani',  successful: 4, failed: 0, running: 0, canceled: 0 },
+      { name: 'Luv Pahwa',      successful: 0, failed: 2, running: 0, canceled: 0 },
+      { name: 'Ketul Vyas',     successful: 1, failed: 0, running: 0, canceled: 0 },
+      { name: 'Richard Thomas', successful: 2, failed: 0, running: 0, canceled: 0 }
+    ]
+  },
+  SIT1: {
+    summary: { successful: 120, failed: 15, running: 8, canceled: 12 },
+    byTechExec: [
+      { name: 'Alice',   successful: 40, failed: 5, running: 1, canceled: 3 },
+      { name: 'Bob',     successful: 30, failed: 4, running: 3, canceled: 3 },
+      { name: 'Charlie', successful: 25, failed: 3, running: 2, canceled: 4 },
+      { name: 'David',   successful: 15, failed: 2, running: 1, canceled: 2 },
+      { name: 'Eva',     successful: 10, failed: 1, running: 1, canceled: 1 }
+    ]
+  },
+  PT1: { summary: { successful: 0, failed: 0, running: 0, canceled: 0 }, byTechExec: [] }
+}
+
+const selectedEnv = ref(environments.value[0])
+const currentDetail = computed(() => detailStore[selectedEnv.value])
+
+/* ===== Filters (top) ===== */
+const techExecs = ['All', 'Kaushik', 'Yacine', 'Ketul', 'Richard']
+const artifactTypes = ['JAVA', '.NET', 'NODEJS', 'PYTHON']
+const filters = ref({ exec: '', artifact: 'JAVA', duration: '3months', isProd: false })
+const handleSearch = () => renderEnvBar()
+const resetFilters = () => { filters.value = { exec:'', artifact:'JAVA', duration:'3months', isProd:false }; renderEnvBar() }
+
+/* ===== Charts ===== */
+let envBar = null, donut = null, execBar = null
+const palette = { primary:'#0B5ED7', grid:'#EEF3F7', text:'#24304A', ok:'#63CF8C', bad:'#E55454', run:'#F6A23A', cancel:'#F6D7A8' }
+
+/* --- helpers for the top bar (unchanged behaviour) --- */
+function hexToRgb(hex){ const h=hex.replace('#',''); const n=parseInt(h.length===3?h.split('').map(c=>c+c).join(''):h,16); return {r:(n>>16)&255,g:(n>>8)&255,b:n&255}}
+function gradientForIndex(canvas,i,total){ const ctx=canvas.getContext('2d'); const g=ctx.createLinearGradient(0,0,0,canvas.height); const t=Math.max(.18,.9-(i/Math.max(total-1,1))*0.6); const base=hexToRgb(palette.primary); g.addColorStop(0,`rgba(${base.r},${base.g},${base.b},${Math.min(1,t+.15)})`); g.addColorStop(1,`rgba(${base.r},${base.g},${base.b},${Math.max(.25,t)})`); return g }
+
+function renderEnvBar(){
+  envBar?.destroy()
+  const canvas = document.getElementById('envBarChart')
+  const ctx = canvas.getContext('2d')
+  const labels = envCounts.value.map(x => x.env)
+  const values = envCounts.value.map(x => x.count)
+  const total = values.length
+
+  envBar = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[{
+        label:'Deployments',
+        data:values,
+        borderRadius:8,
+        barPercentage:0.88,
+        categoryPercentage:0.7,
+        maxBarThickness: 38,
+        backgroundColor: values.map((_,i)=>gradientForIndex(canvas,i,total))
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{ backgroundColor:'#0F172A', titleColor:'#fff', bodyColor:'#fff', padding:8, cornerRadius:8 },
+        datalabels:{ display:false }
+      },
+      layout:{ padding:{ top:2 }},
+      scales:{
+        x:{ grid:{display:false}, ticks:{ color:palette.text, maxRotation:0, autoSkip:true, font:{ size:11 } }},
+        y:{ beginAtZero:true, grid:{ color:palette.grid }, ticks:{ color:palette.text, stepSize:20, font:{ size:11 } }}
+      }
+    },
+    plugins:[{
+      afterDatasetsDraw(chart){
+        const { ctx } = chart; ctx.save(); ctx.font='600 11px system-ui'
+        chart.getDatasetMeta(0).data.forEach((bar,i)=>{
+          const val = values[i]; if(!val) return
+          const p = bar.tooltipPosition(); const r=12
+          ctx.beginPath(); ctx.fillStyle='rgba(10,76,176,.12)'; ctx.arc(p.x, p.y-10, r, 0, Math.PI*2); ctx.fill()
+          ctx.fillStyle='#193a63'; ctx.textAlign='center'; ctx.fillText(String(val), p.x, p.y-6)
+        })
+        ctx.restore()
+      }
+    }]
+  })
+}
+
+/* === Bottom charts (UPDATED aesthetics + sizes) === */
+function renderDetailCharts(){
+  donut?.destroy(); execBar?.destroy()
+  const dctx = document.getElementById('donutChart').getContext('2d')
+  const bctx = document.getElementById('execBarChart').getContext('2d')
+
+  const s = currentDetail.value.summary
+  const total = Object.values(s).reduce((a,b)=>a+b,0)
+
+  // Donut: thicker ring + centered total
+  donut = new Chart(dctx, {
+    type:'doughnut',
+    data:{
+      labels:['Successful','Failed','Running','Canceled'],
+      datasets:[{
+        data:[s.successful,s.failed,s.running,s.canceled],
+        backgroundColor:[palette.ok,palette.bad,palette.run,palette.cancel],
+        borderWidth:0, hoverOffset:10
+      }]
+    },
+    options:{
+      responsive:true,
+      cutout:'56%', // thicker ring (nice balance)
+      layout:{ padding:{ top:2, right:2, bottom:2, left:2 }},
+      plugins:{
+        legend:{ position:'bottom', labels:{ boxWidth:10, color:palette.text, font:{ size:12 } }},
+        datalabels:{ color:'#111827', font:{ weight:'bold', size:11 }, formatter:v=>v>0?v:'' }
+      }
+    },
+    plugins:[{
+      id:'centerTotal',
+      beforeDraw(chart){
+        const {width,height,ctx}=chart
+        ctx.save()
+        ctx.textAlign='center'
+        ctx.fillStyle='#6b7280'; ctx.font='600 12px system-ui'
+        ctx.fillText('Total', width/2, height/2-6)
+        ctx.fillStyle='#1c3faa'; ctx.font='700 26px system-ui'
+        ctx.fillText(String(total), width/2, height/2+18)
+        ctx.restore()
+      }
+    }]
+  })
+
+  // Exec bar: thicker bars, softer grid, labels on top
+  const labels = currentDetail.value.byTechExec.map(x=>x.name)
+  const ok = currentDetail.value.byTechExec.map(x=>x.successful)
+  const bad = currentDetail.value.byTechExec.map(x=>x.failed)
+  const run = currentDetail.value.byTechExec.map(x=>x.running)
+  const can = currentDetail.value.byTechExec.map(x=>x.canceled)
+
+  execBar = new Chart(bctx, {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        { label:'Successful', data:ok,  backgroundColor:palette.ok,  borderRadius:10, barPercentage:.9, categoryPercentage:.6, maxBarThickness: 44 },
+        { label:'Failed',     data:bad, backgroundColor:palette.bad, borderRadius:10, barPercentage:.9, categoryPercentage:.6, maxBarThickness: 44 },
+        { label:'Running',    data:run, backgroundColor:palette.run, borderRadius:10, barPercentage:.9, categoryPercentage:.6, maxBarThickness: 44 },
+        { label:'Canceled',   data:can, backgroundColor:palette.cancel, borderRadius:10, barPercentage:.9, categoryPercentage:.6, maxBarThickness: 44 }
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      layout:{ padding:{ top:6, right:6, bottom:0, left:6 }},
+      scales:{
+        x:{ grid:{ display:false }, ticks:{ color:palette.text, maxRotation:0, font:{ size:12 } }},
+        y:{ beginAtZero:true, grid:{ color:palette.grid }, ticks:{ color:palette.text, stepSize:1, font:{ size:12 } }}
+      },
+      plugins:{
+        legend:{ position:'top', labels:{ boxWidth:10, color:palette.text, font:{ size:12 } }},
+        datalabels:{ anchor:'end', align:'end', offset:4, color:'#111827', font:{ weight:'bold', size:12 }, formatter:v=>v>0?v:'' }
+      }
+    }
+  })
+}
+
+onMounted(async()=>{ await nextTick(); renderEnvBar(); renderDetailCharts() })
+onBeforeUnmount(()=>{ envBar?.destroy(); donut?.destroy(); execBar?.destroy() })
+</script>
+
+<style scoped>
+/* ===== Global sizing (compact) ===== */
+.visual-tab{
+  padding-top:.25rem;
+  --chip-h: 36px;
+  --icon-btn: 34px;
+  --font: 13px;
+  font-size: var(--font);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+
+/* cards */
+.shadow-soft{ box-shadow:0 6px 16px rgba(16,24,40,.06); border:1px solid #E8ECF2; border-radius:14px; }
+.p-10{ padding:10px !important; }
+.mb-2{ margin-bottom:.65rem !important; }
+
+/* section titles */
+.chart-title{
+  color:#222; font-weight:600; font-size:13px;
+  display:flex; align-items:center; gap:.45rem;
+  background:#F6F9FC; padding:6px 10px; border-radius:9px; margin:6px 0 8px;
+}
+.icon-muted{ color:#1f2b3e; opacity:.9 }
+
+/* ===== Top filter bar (unchanged look) ===== */
+.filter-bar{
+  width:100%;
+  background:#F7FAFE;
+  border:1px solid #E7EEF9;
+  border-radius:12px;
+  padding:8px;
+  display:grid;
+  grid-template-columns: 1fr auto;
+  align-items:center;
+  gap:8px;
+}
+.filters-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap:8px;
+}
+.filter-actions{ display:flex; align-items:center; gap:8px; }
+.chip{
+  height:var(--chip-h);
+  border-radius:10px;
+  background:#fff;
+  border:1px solid #E7EEF9;
+  display:flex; align-items:center; gap:8px;
+  padding:4px 8px;
+}
+.chip-icon{ color:#8c9ab0; font-size:14px; }
+.chip-input{
+  appearance:none; border:none; outline:none; background:transparent;
+  width:100%; height:calc(var(--chip-h) - 10px);
+  padding:0 4px 0 0; font-size:13px; color:#24304A;
+}
+.chip-toggle{ justify-content:space-between; }
+.toggle-left{ display:flex; align-items:center; gap:6px; }
+.label{ color:#6b7280; font-weight:600; font-size:12px; }
+.toggle{ position:relative; display:inline-block; width:40px; height:20px; vertical-align:middle; }
+.toggle input{ opacity:0; width:0; height:0; }
+.slider{ position:absolute; inset:0; background:#E5E7EB; border-radius:999px; transition:.2s; cursor:pointer; }
+.slider:before{ content:""; position:absolute; height:14px; width:14px; left:3px; top:3px; background:#fff; 
+border-radius:50%; box-shadow:0 1px 2px rgba(0,0,0,.14); transition:.2s; }
+input:checked + .slider{ background:#0B5ED7; }
+input:checked + .slider:before{ transform:translateX(18px); }
+.icon-btn{
+  width:var(--icon-btn); height:var(--icon-btn);
+  border-radius:8px; display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid transparent; font-size:14px;
+}
+.icon-btn.primary{ background:#0B5ED7; color:#fff; }
+.icon-btn.ghost{ background:#fff; border-color:#E7EEF9; color:#475467; }
+.icon-btn:hover{ filter:brightness(.97); }
+
+/* ===== Bottom: group header with filter chip ===== */
+.group-header{
+  display:flex; align-items:center; justify-content:space-between;
+  margin-bottom:8px;
+}
+.group-title{
+  margin:0; font-weight:700; font-size:13px; color:#222; display:flex; align-items:center;
+}
+.env-chip{ width:260px; }         /* wider so icon never overlaps */
+
+/* subcards (host charts) */
+.subcard{ background:#fff; border:1px solid #E8ECF2; border-radius:12px; padding:8px; height:100%; }
+.subcard-title{
+  display:flex; align-items:center; gap:.4rem;
+  font-weight:600; font-size:13px; color:#222;
+  background:#F6F9FC; border-radius:8px; padding:6px 8px; margin-bottom:6px;
+}
+/* charts */
+.chart-container{ position:relative; }
+.h-360{ height:360px; }
+.h-300{ height:300px; }
+.h-260{ height:260px; }
+
+/* responsive */
+@media (max-width: 992px){
+  .h-360{ height:320px; }
+  .h-300{ height:260px; }
+  .h-260{ height:240px; }
+  .env-chip{ width:220px; }
+}
+@media (max-width: 640px){
+  .h-360{ height:300px; }
+  .h-300{ height:240px; }
+  .h-260{ height:220px; }
+  .group-header{ flex-direction:column; align-items:flex-start; gap:6px; }
+  .env-chip{ width:100%; }
+}
+</style>
