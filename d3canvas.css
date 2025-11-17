@@ -1,0 +1,474 @@
+<script setup>
+import { ref, computed, onMounted, nextTick, watch } from 'vue';
+import * as d3 from 'd3';
+
+// --- 1. DATA (Reduced) ---
+const flatApiData = ref([
+  { "ansibleJobId": "42522120", "warName": "abpa-web", "jarName": "common-lang3", "violationReason": "CVE-2025-48924", "currentVersion": "3.10.0", "allowedVersion": "3.16.0", "techExec": "David Washam", "deploymentEnvironment": "DEV1", "applicationType": "Legacy App" },
+  { "ansibleJobId": "42522120", "warName": "abpa-web", "jarName": "netty-common", "violationReason": null, "currentVersion": "4.1.118.Final", "allowedVersion": "4.1.126.Final", "techExec": "David Washam", "deploymentEnvironment": "DEV1", "applicationType": "Legacy App" },
+  { "ansibleJobId": "42522120", "warName": "abpa-web", "jarName": "jackson-databind", "violationReason": "CVE-2019-12384", "currentVersion": "2.9.8", "allowedVersion": "2.13.3", "techExec": "David Washam", "deploymentEnvironment": "DEV1", "applicationType": "Legacy App" },
+  { "ansibleJobId": "42522120", "warName": "auth-service", "jarName": "spring-security-core", "violationReason": "CVE-2023-34035", "currentVersion": "5.7.0", "allowedVersion": "5.8.1", "techExec": "David Washam", "deploymentEnvironment": "DEV1", "applicationType": "Legacy App" },
+  { "ansibleJobId": "42522120", "warName": "auth-service", "jarName": "log4j-core", "violationReason": "CVE-2021-44228", "currentVersion": "2.14.1", "allowedVersion": "2.17.1", "techExec": "David Washam", "deploymentEnvironment": "DEV1", "applicationType": "Legacy App" },
+  { "ansibleJobId": "42579163", "warName": "crawler-ear", "jarName": "commons-collections4", "violationReason": "CVE-2015-4852", "currentVersion": "4.1", "allowedVersion": "4.5.0-M2", "techExec": "Ketul Vyas", "deploymentEnvironment": "DEV1", "applicationType": "Micro App" },
+  { "ansibleJobId": "42579163", "warName": "crawler-ear", "jarName": "bcprov-jdk18on", "violationReason": "CVE-2024-30171", "currentVersion": "1.72", "allowedVersion": "1.80", "techExec": "Ketul Vyas", "deploymentEnvironment": "DEV1", "applicationType": "Micro App" },
+  { "ansibleJobId": "42579163", "warName": "crawler-ear", "jarName": "guava", "violationReason": null, "currentVersion": "30.0-jre", "allowedVersion": "31.1-jre", "techExec": "Ketul Vyas", "deploymentEnvironment": "DEV1", "applicationType": "Micro App" },
+  { "ansibleJobId": "42579163", "warName": "crawler-ear", "jarName": "httpclient", "violationReason": null, "currentVersion": "4.5.13", "allowedVersion": "4.5.14", "techExec": "Ketul Vyas", "deploymentEnvironment": "DEV1", "applicationType": "Micro App" },
+  { "ansibleJobId": "42579163", "warName": "wims-api", "jarName": "spring-boot-actuator", "violationReason": null, "currentVersion": "2.7.5", "allowedVersion": "2.7.5", "techExec": "Ketul Vyas", "deploymentEnvironment": "DEV1", "applicationType": "Micro App" },
+  { "ansibleJobId": "42579163", "warName": "wims-api", "jarName": "log4j-api", "violationReason": null, "currentVersion": "2.17.1", "allowedVersion": "2.17.1", "techExec": "Ketul Vyas", "deploymentEnvironment": "DEV1", "applicationType": "Micro App" },
+  { "ansibleJobId": "42600100", "warName": "admin-portal", "jarName": "angular-core", "violationReason": null, "currentVersion": "14.0.0", "allowedVersion": "14.0.0", "techExec": "Maria Garcia", "deploymentEnvironment": "QA2", "applicationType": "Internal Tool" },
+  { "ansibleJobId": "42600100", "warName": "admin-portal", "jarName": "prime-ng", "violationReason": null, "currentVersion": "13.4.1", "allowedVersion": "13.4.1", "techExec": "Maria Garcia", "deploymentEnvironment": "QA2", "applicationType": "Internal Tool" },
+  { "ansibleJobId": "42600100", "warName": "admin-portal", "jarName": "chart.js", "violationReason": null, "currentVersion": "3.7.0", "allowedVersion": "3.7.0", "techExec": "Maria Garcia", "deploymentEnvironment": "QA2", "applicationType": "Internal Tool" },
+  { "ansibleJobId": "42600100", "warName": "user-service", "jarName": "spring-data-jpa", "violationReason": null, "currentVersion": "2.7.5", "allowedVersion": "2.7.5", "techExec": "Maria Garcia", "deploymentEnvironment": "QA2", "applicationType": "Internal Tool" },
+  { "ansibleJobId": "42600100", "warName": "user-service", "jarName": "hibernate-core", "violationReason": null, "currentVersion": "5.6.12.Final", "allowedVersion": "5.6.12.Final", "techExec": "Maria Garcia", "deploymentEnvironment": "QA2", "applicationType": "Internal Tool" },
+  { "ansibleJobId": "42600100", "warName": "user-service", "jarName": "mysql-connector-java", "violationReason": null, "currentVersion": "8.0.30", "allowedVersion": "8.0.30", "techExec": "Maria Garcia", "deploymentEnvironment": "QA2", "applicationType": "Internal Tool" },
+  { "ansibleJobId": "42600100", "warName": "user-service", "jarName": "commons-text", "violationReason": "CVE-2022-42889", "currentVersion": "1.9", "allowedVersion": "1.10.0", "techExec": "Maria Garcia", "deploymentEnvironment": "QA2", "applicationType": "Internal Tool" },
+  { "ansibleJobId": "42755321", "warName": "b2c-storefront", "jarName": "react", "violationReason": null, "currentVersion": "18.2.0", "allowedVersion": "18.2.0", "techExec": "Tom Chen", "deploymentEnvironment": "PROD", "applicationType": "B2C Portal" },
+  { "ansibleJobId": "42755321", "warName": "b2c-storefront", "jarName": "redux", "violationReason": null, "currentVersion": "4.2.0", "allowedVersion": "4.2.0", "techExec": "Tom Chen", "deploymentEnvironment": "PROD", "applicationType": "B2C Portal" },
+  { "ansibleJobId": "42755321", "warName": "b2c-storefront", "jarName": "axios", "violationReason": null, "currentVersion": "0.27.2", "allowedVersion": "0.27.2", "techExec": "Tom Chen", "deploymentEnvironment": "PROD", "applicationType": "B2C Portal" },
+  { "ansibleJobId": "42755321", "warName": "product-api", "jarName": "spring-webflux", "violationReason": null, "currentVersion": "5.3.23", "allowedVersion": "5.3.23", "techExec": "Tom Chen", "deploymentEnvironment": "PROD", "applicationType": "B2C Portal" },
+  { "ansibleJobId": "42755321", "warName": "product-api", "jarName": "project-reactor", "violationReason": null, "currentVersion": "3.4.24", "allowedVersion": "3.4.24", "techExec": "Tom Chen", "deploymentEnvironment": "PROD", "applicationType": "B2C Portal" },
+  { "ansibleJobId": "42755321", "warName": "product-api", "jarName": "log4j-core", "violationReason": "CVE-2021-44228", "currentVersion": "2.15.0", "allowedVersion": "2.17.1", "techExec": "Tom Chen", "deploymentEnvironment": "PROD", "applicationType": "B2C Portal" },
+  { "ansibleJobId": "42755321", "warName": "product-api", "jarName": "snakeyaml", "violationReason": "CVE-2022-1471", "currentVersion": "1.30", "allowedVersion": "2.0", "techExec": "Tom Chen", "deploymentEnvironment": "PROD", "applicationType": "B2C Portal" },
+  { "ansibleJobId": "442522120755321", "warName": "payment-gateway", "jarName": "stripe-java", "violationReason": null, "currentVersion": "22.0.0", "allowedVersion": "22.0.0", "techExec": "Tom Chen", "deploymentEnvironment": "PROD", "applicationType": "B2C Portal" },
+  { "ansibleJobId": "42755321", "warName": "payment-gateway", "jarName": "bouncycastle-pkix", "violationReason": null, "currentVersion": "1.70", "allowedVersion": "1.70", "techExec": "Tom Chen", "deploymentEnvironment": "PROD", "applicationType": "B2C Portal" },
+  { "ansibleJobId": "43000500", "warName": "mobile-bff", "jarName": "graphql-java", "violationReason": null, "currentVersion": "18.3", "allowedVersion": "18.3", "techExec": "Mobile Team", "deploymentEnvironment": "DEV3", "applicationType": "API Gateway" },
+  { "ansibleJobId": "43000500", "warName": "mobile-bff", "jarName": "okhttp", "violationReason": null, "currentVersion": "4.9.3", "allowedVersion": "4.10.0", "techExec": "Mobile Team", "deploymentEnvironment": "DEV3", "applicationType": "API Gateway" },
+  { "ansibleJobId": "43000500", "warName": "mobile-bff", "jarName": "retrofit", "violationReason": null, "currentVersion": "2.9.0", "allowedVersion": "2.9.0", "techExec": "Mobile Team", "deploymentEnvironment": "DEV3", "applicationType": "API Gateway" },
+  { "ansibleJobId": "43000500", "warName": "push-notification-svc", "jarName": "firebase-admin", "violationReason": null, "currentVersion": "9.1.1", "allowedVersion": "9.1.1", "techExec": "Mobile Team", "deploymentEnvironment": "DEV3", "applicationType": "Microservice" },
+  { "ansibleJobId": "43000500", "warName": "push-notification-svc", "jarName": "protobuf-java", "violationReason": "CVE-2022-3171", "currentVersion": "3.19.4", "allowedVersion": "3.21.7", "techExec": "Mobile Team", "deploymentEnvironment": "DEV3", "applicationType": "Microservice" },
+  { "ansibleJobId": "43000500", "warName": "push-notification-svc", "jarName": "grpc-netty-shaded", "violationReason": null, "currentVersion": "1.49.0", "allowedVersion": "1.49.0", "techExec": "Mobile Team", "deploymentEnvironment": "DEV3", "applicationType": "Microservice" },
+  { "ansibleJobId": "43000500", "warName": "push-notification-svc", "jarName": "conscrypt-openjdk-uber", "violationReason": null, "currentVersion": "2.5.2", "allowedVersion": "2.5.2", "techExec": "Mobile Team", "deploymentEnvironment": "DEV3", "applicationType": "Microservice" },
+  { "ansibleJobId": "43000500", "warName": "config-server", "jarName": "spring-cloud-config-server", "violationReason": null, "currentVersion": "3.1.4", "allowedVersion": "3.1.4", "techExec": "Mobile Team", "deploymentEnvironment": "DEV3", "applicationType": "Microservice" },
+  { "ansibleJobId": "43000500", "warName": "config-server", "jarName": "spring-security-crypto", "violationReason": null, "currentVersion": "5.7.4", "allowedVersion": "5.7.4", "techExec": "Mobile Team", "deploymentEnvironment": "DEV3", "applicationType": "Microservice" },
+  { "ansibleJobId": "43000500", "warName": "config-server", "jarName": "jsch", "violationReason": "CVE-2023-48795", "currentVersion": "0.1.55", "allowedVersion": "0.2.10", "techExec": "Mobile Team", "deploymentEnvironment": "DEV3", "applicationType": "Microservice" }
+]);
+
+// --- 2. D3 Data Transformation ---
+const graphData = computed(() => {
+  const nodes = [];
+  const links = [];
+  const nodeMap = new Map();
+  const addNode = (id, type, data, hasViolation) => {
+    if (!nodeMap.has(id)) {
+      nodeMap.set(id, { id, type, data, hasViolation });
+    }
+  };
+  for (const item of flatApiData.value) {
+    const jobId = `job-${item.ansibleJobId}`;
+    const warId = `war-${item.ansibleJobId}-${item.warName}`;
+    const jarId = `jar-${item.ansibleJobId}-${item.warName}-${item.jarName}`;
+    const hasViolation = !!item.violationReason;
+    addNode(jobId, 'job', { name: item.ansibleJobId, ...item }, false);
+    addNode(warId, 'war', { name: item.warName, ...item }, false);
+    addNode(jarId, 'jar', { name: item.jarName, ...item }, hasViolation);
+    links.push({ source: jobId, target: warId });
+    links.push({ source: warId, target: jarId });
+  }
+  return { nodes: Array.from(nodeMap.values()), links };
+});
+
+// --- 3. D3 Rendering Logic ---
+const svgRef = ref(null);
+const selectedNode = ref(null);
+const tooltipRef = ref(null);
+let simulation;
+let clusterPositions = {}; // Make cluster positions available to helper functions
+
+// Helper function to get radius
+function getNodeRadius(d) {
+  return d.type === 'job' ? 12 : (d.type === 'war' ? 8 : 6);
+}
+
+// Helper function to find the root job ID for any node
+function getJobId(node) {
+  if (node.type === 'job') return node.id;
+  return `job-${node.data.ansibleJobId}`;
+}
+
+function renderGraph({ nodes, links }, width, height) {
+  d3.select(svgRef.value).selectAll("*").remove();
+
+  const svg = d3.select(svgRef.value)
+    .attr("viewBox", [0, 0, width, height])
+    .style("cursor", "grab");
+
+  // --- GRID AND PADDING ---
+  const padding = 120; // Increased padding for more edge space
+  const x_positions = [padding + (width - padding*2) * 0.2, padding + (width - padding*2) * 0.5, padding + (width - padding*2) * 0.8];
+  const y_positions = [padding + (height - padding*2) * 0.33, padding + (height - padding*2) * 0.66];
+
+  clusterPositions = {
+    "job-42522120":      { x: x_positions[1], y: y_positions[0] }, // Top-Middle
+    "job-42579163":      { x: x_positions[0], y: y_positions[0] }, // Top-Left
+    "job-42600100":      { x: x_positions[0], y: y_positions[1] }, // Bottom-Left
+    "job-42755321":      { x: x_positions[1], y: y_positions[1] }, // Bottom-Middle
+    "job-442522120755321": { x: x_positions[2], y: y_positions[0] }, // Top-Right
+    "job-43000500":      { x: x_positions[2], y: y_positions[1] }  // Bottom-Right
+  };
+  // ------------------------------------
+  
+  // --- TUNED PHYSICS FOR "FAN OUT" LAYOUT ---
+  simulation = d3.forceSimulation(nodes)
+    .force("link", d3.forceLink(links).id(d => d.id).distance(80)) // Was 60. Longer links
+    .force("charge", d3.forceManyBody().strength(-180)) // Was -150. Stronger push
+    .force("collide", d3.forceCollide().radius(d => getNodeRadius(d) + 8)) // Was +10. Less strong.
+    .force("x", d3.forceX(d => clusterPositions[getJobId(d)].x).strength(0.1)) 
+    .force("y", d3.forceY(d => clusterPositions[getJobId(d)].y).strength(0.1));
+  // ---------------------------------------------
+
+  const g = svg.append("g");
+
+  const link = g.append("g")
+    .attr("stroke", "#999")
+    .attr("stroke-opacity", 0.6)
+    .selectAll("line")
+    .data(links)
+    .join("line")
+    .attr("stroke-width", 1.5);
+
+  const node = g.append("g")
+    .attr("stroke", "#fff")
+    .attr("stroke-width", 1.5)
+    .selectAll("circle")
+    .data(nodes)
+    .join("circle")
+    .attr("r", d => getNodeRadius(d))
+    .attr("fill", d => {
+      if (d.type === 'jar') return d.hasViolation ? '#d93025' : '#4caf50';
+      if (d.type === 'war') return '#007acc';
+      return '#333';
+    })
+    .style("cursor", "pointer")
+    .on("click", (event, d) => {
+      selectedNode.value = d.data;
+    })
+    .call(drag(simulation))
+    .on("mouseover", (event, d) => {
+      if (!tooltipRef.value) return;
+      const data = d.data;
+      let content = '';
+
+      if (d.type === 'job') {
+        content = `
+          <div class="tooltip-title">Job: ${data.name}</div>
+          <div class="tooltip-item"><span>Env:</span> ${data.deploymentEnvironment}</div>
+          <div class="tooltip-item"><span>App:</span> ${data.applicationType}</div>
+        `;
+      } else if (d.type === 'war') {
+        content = `
+          <div class="tooltip-title">WAR: ${data.name}</div>
+          <div class="tooltip-item"><span>Job:</span> ${data.ansibleJobId}</div>
+          <div class="tooltip-item"><span>App:</span> ${data.applicationType}</div>
+        `;
+      } else { // jar
+        content = `
+          <div class="tooltip-title">JAR: ${data.name}</div>
+          <div class="tooltip-item"><span>Version:</span> ${data.currentVersion}</div>
+          ${data.violationReason ? 
+            `<div class="tooltip-item violation"><span>Violation:</span> ${data.violationReason}</div>` : 
+            '<div class="tooltip-item success"><span>Status:</span> OK</div>'}
+        `;
+      }
+      
+      tooltipRef.value.innerHTML = content;
+      tooltipRef.value.style.opacity = 1;
+
+      tooltipRef.value.style.left = `${event.offsetX + 20}px`;
+      tooltipRef.value.style.top = `${event.offsetY + 20}px`;
+    })
+    .on("mouseout", () => {
+      if (!tooltipRef.value) return;
+      tooltipRef.value.style.opacity = 0;
+    });
+
+  const labels = g.append("g")
+    .attr("class", "labels")
+    .selectAll("text")
+    .data(nodes)
+    .enter()
+    .append("text")
+    .attr("dy", ".35em")
+    .attr("font-size", "10px")
+    .text(d => d.data.name);
+
+  // Zoom handler
+  const zoom = d3.zoom()
+      .scaleExtent([0.1, 8])
+      .on("zoom", (event) => {
+        g.attr("transform", event.transform);
+      });
+
+  svg.call(zoom);
+
+  // --- UPDATED TICK FUNCTION ---
+  simulation.on("tick", () => {
+    link
+      .attr("x1", d => d.source.x)
+      .attr("y1", d => d.source.y)
+      .attr("x2", d => d.target.x)
+      .attr("y2", d => d.target.y);
+      
+    node
+      .attr("cx", d => d.x)
+      .attr("cy", d => d.y);
+      
+    // --- Dynamic Label Positioning ---
+    labels
+      .attr("x", d => d.x)
+      .attr("y", d => d.y)
+      .attr("dx", d => {
+        const clusterCenterX = clusterPositions[getJobId(d)].x;
+        // Flip label to left/right based on position relative to cluster center
+        return d.x < clusterCenterX ? (getNodeRadius(d) + 3) : (-getNodeRadius(d) - 3);
+      })
+      .attr("text-anchor", d => {
+        const clusterCenterX = clusterPositions[getJobId(d)].x;
+        return d.x < clusterCenterX ? "start" : "end";
+      });
+  });
+}
+
+// --- Drag Helper ---
+function drag(simulation) {
+  function dragstarted(event) {
+    if (!event.active) simulation.alphaTarget(0.3).restart();
+    event.subject.fx = event.subject.x;
+    event.subject.fy = event.subject.y;
+  }
+  function dragged(event) {
+    event.subject.fx = event.x;
+    event.subject.fy = event.y;
+  }
+  function dragended(event) {
+    if (!event.active) simulation.alphaTarget(0);
+    // Snap back to grid
+    event.subject.fx = null;
+    event.subject.fy = null;
+  }
+  return d3.drag()
+    .on("start", dragstarted)
+    .on("drag", dragged)
+    .on("end", dragended);
+}
+
+// --- Lifecycle Hooks ---
+onMounted(() => {
+  nextTick(() => {
+    if (svgRef.value) {
+      const { clientWidth, clientHeight } = svgRef.value;
+      if (clientWidth > 0 && clientHeight > 0) {
+        renderGraph(graphData.value, clientWidth, clientHeight);
+      } else {
+        setTimeout(() => { // Failsafe
+          if (svgRef.value) {
+            const { clientWidth, clientHeight } = svgRef.value;
+            if (clientWidth > 0 && clientHeight > 0) {
+                renderGraph(graphData.value, clientWidth, clientHeight);
+            }
+          }
+        }, 300);
+      }
+    }
+  });
+});
+
+watch(graphData, (newData) => {
+  if (svgRef.value) {
+    const { clientWidth, clientHeight } = svgRef.value;
+    if (clientWidth > 0 && clientHeight > 0) {
+      renderGraph(newData, clientWidth, clientHeight);
+    }
+  }
+});
+</script>
+
+<template>
+  <div class="graph-container">
+    <svg ref="svgRef"></svg>
+    
+    <div ref="tooltipRef" class="tooltip"></div>
+
+    <Transition name="fade">
+      <div v-if="selectedNode" class="modal-backdrop" @click="selectedNode = null">
+        <div class="modal" @click.stop>
+          <h3>Details: {{ selectedNode.name }}</h3>
+          
+          <div v-if="selectedNode.jarName === selectedNode.name">
+            <div v-if="selectedNode.violationReason" class="detail-item violation">
+              <strong>Violation:</strong>
+              <span>{{ selectedNode.violationReason }}</span>
+            </div>
+            <div class="detail-item">
+              <strong>Current Version:</strong>
+              <span>{{ selectedNode.currentVersion }}</span>
+            </div>
+            <div class="detail-item">
+              <strong>Allowed Version:</strong>
+              <span>{{ selectedNode.allowedVersion }}</span>
+            </div>
+            <div class="detail-item">
+              <strong>Tech Exec:</strong>
+              <span>{{ selectedNode.techExec }}</span>
+            </div>
+          </div>
+          
+          <div class="detail-item">
+            <strong>Job ID:</strong>
+            <span>{{ selectedNode.ansibleJobId }}</span>
+          </div>
+           <div class="detail-item">
+            <strong>WAR:</strong>
+            <span>{{ selectedNode.warName }}</span>
+          </div>
+          <div class="detail-item">
+            <strong>Environment:</strong>
+            <span>{{ selectedNode.deploymentEnvironment }}</span>
+          </div>
+          <div class="detail-item">
+            <strong>App Type:</strong>
+            <span>{{ selectedNode.applicationType }}</span>
+          </div>
+
+          <button @click="selectedNode = null">Close</button>
+        </div>
+      </div>
+    </Transition>
+  </div>
+</template>
+
+<style>
+/* Global style reset */
+html, body, #app {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  font-family: sans-serif;
+  box-sizing: border-box; 
+  background-color: #f0f0f0;
+}
+
+/* Fills the #app element */
+.graph-container {
+  width: 100%;
+  height: 100%;
+  border: 1px solid #ccc;
+  position: relative;
+  background: #fdfdfd;
+  overflow: hidden; 
+  box-sizing: border-box;
+}
+
+svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Tooltip Style */
+.tooltip {
+  position: absolute;
+  opacity: 0;
+  background-color: #ffffff;
+  color: #333;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 200;
+  max-width: 300px;
+  word-wrap: break-word;
+  border: 1px solid #e0e0e0;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.tooltip-title {
+  font-weight: 600;
+  font-size: 1.1em;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 5px;
+  color: #000;
+}
+.tooltip-item {
+  margin-bottom: 4px;
+}
+.tooltip-item span {
+  font-weight: 600;
+  color: #555;
+  margin-right: 5px;
+}
+.tooltip .violation {
+  color: #d93025;
+  font-weight: 500;
+}
+.tooltip .violation span {
+  color: #d93025;
+}
+.tooltip .success span {
+  color: #4caf50;
+}
+
+/* --- Modal Styles --- */
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  width: 90%;
+  max-width: 500px;
+  z-index: 101;
+}
+.modal h3 {
+  margin-top: 0;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+  word-break: break-all;
+}
+.detail-item {
+  margin-bottom: 12px;
+  font-size: 0.9em;
+}
+.detail-item strong {
+  display: block;
+  color: #555;
+}
+.detail-item span {
+  word-break: break-all;
+}
+.detail-item.violation strong,
+.detail-item.violation span {
+  color: #d93025;
+  font-weight: bold;
+}
+.modal button {
+  margin-top: 10px;
+  padding: 8px 16px;
+  border: none;
+  background: #007acc;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.modal button:hover {
+  background: #005fa9;
+}
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
+</style>
