@@ -1,0 +1,389 @@
+<script setup>
+import { ref, onMounted, watch } from 'vue';
+import * as d3 from 'd3';
+import axios from 'axios'; // Ensure you ran: npm install axios
+
+// --- 1. STATE ---
+const flatApiData = ref([]); // Starts empty
+const isLoading = ref(false);
+const errorMsg = ref(null);
+
+const svgRef = ref(null);
+const containerRef = ref(null);
+const gRef = ref(null);
+const tooltipRef = ref(null);
+const selectedNode = ref(null);
+const searchQuery = ref("");
+
+const currentPage = ref(1);
+const pageSize = 5;
+const totalJobs = ref(0);
+
+let fullHierarchy = []; 
+let root = null;
+let treemap = null;
+let i = 0;
+const duration = 400;
+const nodeHeight = 30; 
+
+// --- 2. API FETCH FUNCTION ---
+async function fetchApiData() {
+  isLoading.value = true;
+  errorMsg.value = null;
+
+  try {
+    // We use the relative path so the Vite Proxy handles the domain
+    // This avoids CORS errors on localhost
+    const url = 'api';
+    
+    // Assign the real data
+    flatApiData.value = response.data;
+
+    // Build Graph
+    buildRawHierarchy();
+    initGraph();
+
+  } catch (error) {
+    console.error("API Error:", error);
+    errorMsg.value = "Error loading data. Ensure you are on the VPN and the Vite Proxy is configured.";
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+// --- 3. HIERARCHY BUILDER ---
+function buildRawHierarchy() {
+  const jobsMap = new Map();
+  
+  // Safety check if data is null
+  if (!flatApiData.value || !Array.isArray(flatApiData.value)) return;
+
+  flatApiData.value.forEach(item => {
+    // LEVEL 1: JOB
+    if (!jobsMap.has(item.ansibleJobId)) {
+      jobsMap.set(item.ansibleJobId, {
+        name: "Job: " + item.ansibleJobId,
+        type: 'job',
+        data: item, 
+        children: new Map(),
+        id: `job-${item.ansibleJobId}`
+      });
+    }
+    const job = jobsMap.get(item.ansibleJobId);
+
+    // LEVEL 2: WAR
+    if (!job.children.has(item.warName)) {
+      job.children.set(item.warName, {
+        name: item.warName,
+        type: 'war',
+        data: item,
+        children: [],
+        id: `war-${item.ansibleJobId}-${item.warName}`
+      });
+    }
+    const war = job.children.get(item.warName);
+
+    // LEVEL 3: JAR (Leaf)
+    war.children.push({
+      name: item.jarName,
+      type: 'jar',
+      data: item,
+      value: 1,
+      id: `jar-${item.ansibleJobId}-${item.warName}-${item.jarName}`
+    });
+  });
+
+  fullHierarchy = Array.from(jobsMap.values()).map(job => {
+    job.children = Array.from(job.children.values());
+    return job;
+  });
+  
+  totalJobs.value = fullHierarchy.length;
+}
+
+function getDisplayData() {
+  const query = searchQuery.value.toLowerCase().trim();
+
+  if (query) {
+    const deepFilter = (nodes) => {
+      const filtered = [];
+      for (const node of nodes) {
+        const isMatch = node.name.toLowerCase().includes(query);
+        let matchingChildren = [];
+        if (node.children) {
+          matchingChildren = deepFilter(node.children);
+        }
+        if (isMatch || matchingChildren.length > 0) {
+          const newNode = { ...node, isMatch: isMatch };
+          if (matchingChildren.length > 0) {
+             newNode.children = matchingChildren;
+             newNode._children = null; 
+          } else {
+            newNode.children = node.children ? [] : null; 
+          }
+          filtered.push(newNode);
+        }
+      }
+      return filtered;
+    };
+    return { name: "Search Results", type: "root", children: deepFilter(fullHierarchy) };
+  }
+
+  const start = (currentPage.value - 1) * pageSize;
+  const end = start + pageSize;
+  const visibleJobs = fullHierarchy.slice(start, end).map(job => ({ ...job }));
+
+  return { name: "Dashboard Root", type: "root", children: visibleJobs };
+}
+
+// --- 4. D3 RENDERING ---
+function initGraph() {
+  const data = getDisplayData();
+  
+  // If no data yet, don't draw
+  if(!data.children || data.children.length === 0) {
+    d3.select(svgRef.value).selectAll("*").remove();
+    return;
+  }
+
+  root = d3.hierarchy(data, d => d.children);
+  root.x0 = 0;
+  root.y0 = 0;
+
+  // Initial Collapse logic (same as before)
+  if (!searchQuery.value && root.children) {
+    root.children.forEach(job => {
+       if(job.children) {
+         job.children.forEach(war => {
+           if(war.children) {
+             war._children = war.children;
+             war.children = null;
+           }
+         })
+       }
+    });
+  }
+
+  treemap = d3.tree().nodeSize([nodeHeight, 220]); 
+
+  const svg = d3.select(svgRef.value);
+  svg.selectAll("*").remove();
+  gRef.value = svg.append("g");
+  update(root);
+}
+
+function update(source) {
+  const treeData = treemap(root);
+  const nodes = treeData.descendants();
+  const links = treeData.links();
+
+  let minX = Infinity;
+  let maxX = -Infinity;
+  nodes.forEach(d => {
+    d.y = d.depth * 220; 
+    if (d.x < minX) minX = d.x;
+    if (d.x > maxX) maxX = d.x;
+  });
+
+  const treeHeight = maxX - minX;
+  const verticalPadding = 40;
+  const containerHeight = containerRef.value ? containerRef.value.clientHeight : 800;
+
+  let shiftY = 0;
+  if (treeHeight < containerHeight) {
+    shiftY = (containerHeight / 2) - ((maxX + minX) / 2);
+  } else {
+    shiftY = Math.abs(minX) + verticalPadding;
+  }
+  
+  gRef.value.transition().duration(duration)
+      .attr("transform", `translate(80, ${shiftY})`);
+
+  const finalSvgHeight = Math.max(containerHeight, treeHeight + (verticalPadding * 2));
+  d3.select(svgRef.value).attr("height", finalSvgHeight);
+
+  const node = gRef.value.selectAll('g.node')
+      .data(nodes, d => d.id || (d.id = ++i));
+
+  const nodeEnter = node.enter().append('g')
+      .attr('class', 'node')
+      .attr("transform", d => `translate(${source.y0},${source.x0})`)
+      .on('click', click);
+
+  nodeEnter.append('circle')
+      .attr('class', 'node-circle')
+      .attr('r', 1e-6)
+      .style("fill", d => getNodeColor(d))
+      .style("stroke", d => d.data.type === 'jar' && d.data.data.violationReason ? "#d93025" : "#fff");
+
+  const expandIcon = nodeEnter.filter(d => d.children || d._children || d.data.children)
+    .append("g")
+    .attr("class", "expand-icon")
+    .attr("transform", "translate(-12, 0)");
+
+  expandIcon.append("circle").attr("r", 5).attr("fill", "#fff").attr("stroke", "#ccc");
+  expandIcon.append("text").attr("dy", "0.35em").attr("text-anchor", "middle").attr("font-size", "10px").text(d => d.children ? "-" : "+");
+
+  nodeEnter.append('text')
+      .attr("dy", ".35em")  
+      .attr("x", 14)        
+      .attr("text-anchor", "start")
+      .text(d => d.data.name)
+      .style("fill-opacity", 1) 
+      .style("fill", "#333")
+      .style("font-weight", "500")
+      .style("font-size", "12px"); 
+
+  // TOOLTIP LOGIC (Using your exact data fields)
+  nodeEnter.on("mouseover", (event, d) => {
+      if (d.data.type === 'root') return;
+      const raw = d.data.data || {};
+      let content = '';
+      
+      if (d.data.type === 'job') {
+         content = `
+           <div class="tt-header">Job: ${raw.ansibleJobId}</div>
+           <div class="tt-row"><strong>AIT:</strong> ${raw.aitNumber || '-'}</div>
+           <div class="tt-row"><strong>Env:</strong> ${raw.deploymentEnvironment || '-'}</div>
+           <div class="tt-row"><strong>Date:</strong> ${raw.deployedDate || '-'}</div>
+         `;
+      } else if (d.data.type === 'war') {
+         content = `
+           <div class="tt-header">WAR: ${raw.warName}</div>
+           <div class="tt-row"><strong>EAR:</strong> ${raw.earName}</div>
+           <div class="tt-row"><strong>Branch:</strong> ${raw.branch}</div>
+         `;
+      } else if (d.data.type === 'jar') {
+         const isBad = !!raw.violationReason;
+         content = `
+           <div class="tt-header ${isBad ? 'tt-error' : ''}">${raw.jarName}</div>
+           ${isBad ? `<div class="tt-alert">⚠️ ${raw.violationReason}</div>` : ''}
+           <div class="tt-grid">
+             <div><strong>Cur:</strong> ${raw.currentVersion}</div>
+             <div><strong>Allow:</strong> ${raw.allowedVersion}</div>
+           </div>
+           <div class="tt-row"><strong>Exec:</strong> ${raw.techExec}</div>
+         `;
+      }
+      
+      tooltipRef.value.innerHTML = content;
+      tooltipRef.value.style.opacity = 1;
+      tooltipRef.value.style.left = (event.pageX + 15) + "px";
+      tooltipRef.value.style.top = (event.pageY - 20) + "px";
+
+  }).on("mouseout", () => { tooltipRef.value.style.opacity = 0; });
+
+  const nodeUpdate = node.merge(nodeEnter).transition().duration(duration)
+      .attr("transform", d => `translate(${d.y},${d.x})`);
+
+  nodeUpdate.select('circle.node-circle')
+      .attr('r', 6) 
+      .style("fill", d => getNodeColor(d))
+      .style("stroke", d => d.data.isMatch ? "#ff00ff" : (d.data.type === 'jar' && d.data.data.violationReason ? "#d93025" : "#fff"))
+      .style("stroke-width", d => d.data.isMatch ? 3 : 1);
+
+  nodeUpdate.select('.expand-icon text').text(d => d.children ? "-" : "+");
+  nodeUpdate.select('text').style("fill", d => d.data.isMatch ? "#d000ff" : "#333").style("font-weight", d => d.data.isMatch ? "bold" : "500");
+
+  const nodeExit = node.exit().transition().duration(duration)
+      .attr("transform", d => `translate(${source.y},${source.x})`)
+      .remove();
+  nodeExit.select('circle').attr('r', 1e-6);
+  nodeExit.select('text').style("fill-opacity", 1e-6);
+
+  const link = gRef.value.selectAll('path.link').data(links, d => d.target.id);
+  const linkEnter = link.enter().insert('path', "g").attr("class", "link").attr('d', d => { const o = {x: source.x0, y: source.y0}; return diagonal(o, o); });
+  link.merge(linkEnter).transition().duration(duration).attr('d', d => diagonal(d.source, d.target));
+  link.exit().transition().duration(duration).attr('d', d => { const o = {x: source.x, y: source.y}; return diagonal(o, o); }).remove();
+  nodes.forEach(d => { d.x0 = d.x; d.y0 = d.y; });
+}
+
+function diagonal(s, d) { return `M ${s.y} ${s.x} C ${(s.y + d.y) / 2} ${s.x}, ${(s.y + d.y) / 2} ${d.x}, ${d.y} ${d.x}`; }
+
+function getNodeColor(d) {
+  if (d.data.type === 'root') return '#fff';
+  if (d.data.type === 'job') return '#1976d2';
+  if (d.data.type === 'war') return '#fb8c00';
+  if (d.data.data.violationReason) return '#ffcdd2';
+  return '#c8e6c9';
+}
+
+function click(event, d) {
+  if(!d.children && !d._children && d.data.type === 'jar') { return; }
+  if (d.children) { d._children = d.children; d.children = null; } else { d.children = d._children; d._children = null; }
+  update(d);
+}
+
+function nextPage() { if (currentPage.value * pageSize < totalJobs.value) { currentPage.value++; initGraph(); } }
+function prevPage() { if (currentPage.value > 1) { currentPage.value--; initGraph(); } }
+
+watch(searchQuery, () => { initGraph(); });
+function handleResize() { if(root) update(root); }
+
+onMounted(() => {
+  // TRIGGER THE API CALL ON LOAD
+  fetchApiData(); 
+  window.addEventListener('resize', handleResize);
+});
+</script>
+
+<template>
+  <div class="container">
+    <div class="header">
+      <div class="search-area">
+        <input v-model="searchQuery" placeholder="Search Global..." class="search-input" />
+      </div>
+      
+      <div v-if="isLoading" style="color: #1976d2; font-weight: bold;">Loading Data...</div>
+      <div v-else-if="errorMsg" style="color: red; font-weight: bold;">{{ errorMsg }}</div>
+      
+      <div v-else class="pagination" v-if="!searchQuery">
+        <button @click="prevPage" :disabled="currentPage === 1">Prev</button>
+        <span>Page {{ currentPage }} of {{ Math.ceil(totalJobs / pageSize) || 1 }}</span>
+        <button @click="nextPage" :disabled="currentPage * pageSize >= totalJobs">Next</button>
+      </div>
+      <div class="pagination-disabled" v-if="searchQuery"><span>Search Mode</span></div>
+      
+      <div class="legend">
+        <span class="dot job"></span> Job <span class="dot war"></span> WAR <span class="dot jar-ok"></span> JAR
+      </div>
+    </div>
+
+    <div class="graph-scroll-area" ref="containerRef">
+      <svg ref="svgRef" width="100%"></svg>
+    </div>
+    <div ref="tooltipRef" class="tooltip-bubble"></div>
+  </div>
+</template>
+
+<style scoped>
+:global(body), :global(html) { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; }
+.container { display: flex; flex-direction: column; width: 100vw; height: 100vh; background: #f4f4f4; font-family: 'Segoe UI', sans-serif; }
+.header { flex: 0 0 60px; background: white; border-bottom: 1px solid #ddd; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; z-index: 10; }
+.graph-scroll-area { flex: 1; overflow: auto; background: #f9f9f9; position: relative; }
+
+/* Nice Bubble Tooltip */
+.tooltip-bubble { position: absolute; opacity: 0; pointer-events: none; background: white; border: 1px solid #e0e0e0; padding: 12px; border-radius: 8px; font-size: 12px; color: #333; box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 9999; min-width: 200px; max-width: 280px; transition: opacity 0.15s ease-in-out; }
+:deep(.tt-header) { font-weight: 700; font-size: 13px; margin-bottom: 6px; color: #1976d2; border-bottom: 1px solid #eee; padding-bottom: 4px; }
+:deep(.tt-header.tt-error) { color: #d32f2f; }
+:deep(.tt-row) { margin-bottom: 3px; line-height: 1.4; }
+:deep(.tt-grid) { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 4px; background: #f5f5f5; padding: 4px; border-radius: 4px;}
+:deep(.tt-alert) { background: #ffebee; color: #c62828; padding: 4px 8px; border-radius: 4px; margin-bottom: 6px; font-weight: 600; border: 1px solid #ffcdd2; }
+:deep(strong) { color: #555; font-weight: 600; margin-right: 3px; }
+
+/* UI Helpers */
+.search-input { padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; width: 250px; }
+.pagination { display: flex; align-items: center; gap: 10px; }
+.pagination button { padding: 6px 12px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer; }
+.pagination button:disabled { background: #ccc; cursor: not-allowed; }
+.legend { display: flex; gap: 10px; font-size: 12px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.job { background: #1976d2; }
+.war { background: #fb8c00; }
+.jar-ok { background: #c8e6c9; border: 1px solid #81c784; }
+:deep(.node circle) { cursor: pointer; transition: all 0.3s; }
+:deep(.link) { fill: none; stroke: #ccc; stroke-width: 1.5px; }
+:deep(.expand-icon) { cursor: pointer; }
+:deep(.expand-icon text) { font-family: monospace; font-weight: bold; fill: #555; user-select: none; }
+:deep(text) { font-family: sans-serif; font-size: 12px; pointer-events: none;}
+</style>
